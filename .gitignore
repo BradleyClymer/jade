@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.snap
+capture.js
+capture_log.txt
+jade_screenshot.png
+.DS_Store
+Thumbs.db

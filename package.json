@@ -1,0 +1,105 @@
+{
+  "name": "jade-editor",
+  "version": "0.1.0",
+  "description": "A lightweight Markdown editor with live preview",
+  "main": "main.js",
+  "scripts": {
+    "build": "node build.js",
+    "start": "node build.js && electron .",
+    "dev": "node build.js && electron .",
+    "dist": "node build.js && electron-builder",
+    "dist:win": "node build.js && electron-builder --win",
+    "dist:mac": "node build.js && electron-builder --mac",
+    "dist:linux": "node build.js && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.jade.editor",
+    "productName": "Jade",
+    "icon": "assets/icon.png",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "dist/bundle.js",
+      "dist/bundle.js.map",
+      "assets/icon.svg",
+      "assets/icon.png"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown File",
+        "description": "Markdown Document",
+        "role": "Editor",
+        "mimeType": "text/markdown",
+        "icon": "assets/icon.png"
+      },
+      {
+        "ext": "markdown",
+        "name": "Markdown File",
+        "description": "Markdown Document",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "TextEditor",
+      "icon": "assets/icon.png",
+      "mimeTypes": ["text/markdown", "text/x-markdown"]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bradclymer/jade-editor"
+  },
+  "author": "Bradley Clymer",
+  "license": "MIT",
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.6",
+    "@codemirror/commands": "^6.8.0",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/language-data": "^6.5.1",
+    "@codemirror/search": "^6.5.10",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.5",
+    "@lezer/highlight": "^1.2.1",
+    "@replit/codemirror-vim": "^6.4.0",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0"
+  },
+  "devDependencies": {
+    "electron": "^36.3.2",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.25.4"
+  },
+  "allowScripts": {
+    "electron@36.3.2": true,
+    "esbuild@0.25.4": true,
+    "electron-winstaller@5.4.0": true
+  }
+}

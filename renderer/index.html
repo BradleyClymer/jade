@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jade</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="tab-bar">
+    <div id="tabs"></div>
+    <button id="new-tab-btn" title="New Tab">+</button>
+  </div>
+  <div id="toolbar">
+    <button class="tb-btn" data-action="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+    <button class="tb-btn" data-action="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+    <button class="tb-btn" data-action="strikethrough" title="Strikethrough"><s>S</s></button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" data-action="h1" title="Heading 1">H1</button>
+    <button class="tb-btn" data-action="h2" title="Heading 2">H2</button>
+    <button class="tb-btn" data-action="h3" title="Heading 3">H3</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" data-action="ul" title="Bullet List">&#8226; List</button>
+    <button class="tb-btn" data-action="ol" title="Numbered List">1. List</button>
+    <button class="tb-btn" data-action="task" title="Task List">&#9744; Task</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" data-action="link" title="Insert Link">&#128279;</button>
+    <button class="tb-btn" data-action="image" title="Insert Image">&#128247;</button>
+    <button class="tb-btn" data-action="code" title="Inline Code">&lt;/&gt;</button>
+    <button class="tb-btn" data-action="codeblock" title="Code Block">&#9635; Code</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" data-action="blockquote" title="Blockquote">&#10073; Quote</button>
+    <button class="tb-btn" data-action="hr" title="Horizontal Rule">&#8212;</button>
+    <button class="tb-btn" data-action="table" title="Insert Table">&#9638; Table</button>
+  </div>
+  <div id="workspace">
+    <div id="editor-pane"></div>
+    <div id="divider"></div>
+    <div id="preview-pane">
+      <div id="preview-content"></div>
+    </div>
+  </div>
+  <div id="status-bar">
+    <span id="status-file">Untitled</span>
+    <span id="status-cursor">Ln 1, Col 1</span>
+    <span id="status-words">0 words</span>
+    <span id="status-encoding">UTF-8</span>
+    <button id="scroll-lock-btn" class="status-btn active" title="Scroll sync (on)">&#128274;</button>
+    <button id="vim-mode-btn" class="status-btn" title="Vim mode (off)">VIM</button>
+  </div>
+  <script src="../dist/bundle.js"></script>
+</body>
+</html>
