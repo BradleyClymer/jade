@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('jade', {
   exportPdf: (html) => ipcRenderer.invoke('export-pdf', html),
   exportLatex: () => ipcRenderer.invoke('export-latex'),
   updateRecentFiles: (files) => ipcRenderer.send('update-recent-files', files),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  openCSSFile: () => ipcRenderer.invoke('open-css-file'),
 
   onOpenFile: (cb) => ipcRenderer.on('open-file', (_, path) => cb(path)),
   onNewFile: (cb) => ipcRenderer.on('new-file', () => cb()),
@@ -25,4 +27,7 @@ contextBridge.exposeInMainWorld('jade', {
   onExportLatex: (cb) => ipcRenderer.on('export-latex', () => cb()),
   onOpenRecent: (cb) => ipcRenderer.on('open-recent', (_, path) => cb(path)),
   onSetTheme: (cb) => ipcRenderer.on('set-theme', (_, theme) => cb(theme)),
+  onExportLatexProject: (cb) => ipcRenderer.on('export-latex-project', () => cb()),
+  onSelectCustomCSS: (cb) => ipcRenderer.on('select-custom-css', () => cb()),
+  onClearCustomCSS: (cb) => ipcRenderer.on('clear-custom-css', () => cb()),
 });

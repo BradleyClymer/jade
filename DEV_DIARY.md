@@ -32,6 +32,11 @@
 - Find/replace: Ctrl+F find, Ctrl+H replace (CM6 search panel with replace row)
 - Word wrap toggle in status bar (Compartment-based runtime reconfigure)
 - Theme selector: Jade (green), Dark, Light -- cycle in status bar or View menu, persisted in localStorage
+- LaTeX export: proper list merging (consecutive items in one itemize/enumerate), table support (booktabs), math passthrough, blockquote merging, task list checkboxes, inline code/link/strikethrough handling
+- LaTeX multi-file project export: splits document by H1 sections into separate .tex files + main.tex with preamble, TOC, and \input{} includes; auto-selects article vs report class
+- PDF export: syntax-highlighted code blocks (highlight.js GitHub-light CSS in the PDF template)
+- Markdown linting: toggleable lint gutter (missing heading space, consecutive blank lines, trailing whitespace); CM6 lint extension with Compartment toggle
+- Custom CSS for preview: load user .css file via View menu, persisted in localStorage, applied as a `<style>` overlay
 
 ### Architecture
 
@@ -61,23 +66,23 @@
 - [x] Keyboard shortcuts for toolbar actions (Ctrl+B bold, Ctrl+I italic, etc.) -- 2026-10-30
 
 #### P2 -- polish
-- [ ] LaTeX export: consecutive list items should merge into one itemize/enumerate block
-- [ ] LaTeX export: table support
-- [ ] PDF export: syntax-highlighted code blocks (currently plain)
+- [x] LaTeX export: consecutive list items merged, table support (booktabs), math passthrough -- 2026-10-30
+- [x] LaTeX export: multi-file project (File > Export as LaTeX Project) -- 2026-10-30
+- [x] PDF export: syntax-highlighted code blocks -- 2026-10-30
 - [ ] PDF export: user-selectable page size / margins
 - [x] Preview: mermaid diagram rendering -- 2026-10-30
 - [x] Preview: math/KaTeX rendering -- 2026-10-30
 - [ ] Minimap (CM6 extension or custom)
 - [x] Word wrap toggle -- 2026-10-30
 - [x] Theme selector (jade green, dark, light) -- 2026-10-30
-- [ ] Custom CSS for preview
+- [x] Custom CSS for preview (View > Custom Preview CSS) -- 2026-10-30
+- [x] Markdown linting toggle in status bar -- 2026-10-30
 
 #### P3 -- stretch
 - [ ] Plugin system
 - [ ] Git integration (diff view, commit from editor)
 - [ ] Multi-window support (separate windows, not just tabs)
 - [ ] Collaborative editing (CRDT)
-- [ ] Markdown linting
 
 ### Cross-platform notes
 

@@ -133,6 +133,13 @@ function buildMenu() {
             if (win) win.webContents.send('export-latex');
           },
         },
+        {
+          label: 'Export as LaTeX Project...',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('export-latex-project');
+          },
+        },
         { type: 'separator' },
         {
           label: 'New Window',
@@ -263,6 +270,21 @@ function buildMenu() {
           },
         },
         { type: 'separator' },
+        {
+          label: 'Custom Preview CSS...',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('select-custom-css');
+          },
+        },
+        {
+          label: 'Clear Custom CSS',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('clear-custom-css');
+          },
+        },
+        { type: 'separator' },
         { role: 'toggleDevTools' },
       ],
     },
@@ -367,6 +389,26 @@ ipcMain.handle('export-latex', async (event) => {
   });
   if (canceled) return { canceled: true };
   return { canceled: false, filePath };
+});
+
+ipcMain.handle('select-directory', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select output folder for LaTeX project',
+  });
+  if (canceled) return { canceled: true };
+  return { canceled: false, path: filePaths[0] };
+});
+
+ipcMain.handle('open-css-file', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    properties: ['openFile'],
+    filters: [{ name: 'CSS Stylesheets', extensions: ['css'] }],
+  });
+  if (canceled) return { canceled: true };
+  return { canceled: false, path: filePaths[0] };
 });
 
 ipcMain.handle('capture-page', async (event) => {

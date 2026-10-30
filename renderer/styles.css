@@ -362,6 +362,33 @@ html, body {
 .cm-editor .tok-processingInstruction { color: var(--syntax-meta); }
 .cm-editor .tok-monospace { color: var(--syntax-string); }
 
+/* Lint gutter */
+.cm-lint-marker-warning {
+  content: '!';
+  color: #e5c07b;
+}
+
+.cm-lint-marker-info {
+  content: 'i';
+  color: var(--text-muted);
+}
+
+.cm-diagnostic-warning {
+  border-left: 3px solid #e5c07b;
+  padding-left: 8px;
+}
+
+.cm-diagnostic-info {
+  border-left: 3px solid var(--text-muted);
+  padding-left: 8px;
+}
+
+.cm-tooltip-lint {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
 /* Search panel */
 .cm-panels {
   background: var(--bg-elevated) !important;

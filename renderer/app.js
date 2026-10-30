@@ -5,6 +5,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap, HighlightStyle } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches, openSearchPanel, replaceAll } from '@codemirror/search';
+import { linter, lintGutter } from '@codemirror/lint';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import { vim } from '@replit/codemirror-vim';
@@ -194,6 +195,37 @@ const jadeHighlightStyle = HighlightStyle.define([
   { tag: tags.labelName, color: 'var(--syntax-url)' },
 ]);
 
+// Markdown linter
+function lintMarkdown(view) {
+  const diagnostics = [];
+  const doc = view.state.doc;
+  let inCode = false;
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i);
+    const text = line.text;
+    if (text.startsWith('```')) { inCode = !inCode; continue; }
+    if (inCode) continue;
+    if (/^#{1,6}[^#\s]/.test(text)) {
+      const len = text.match(/^#+/)[0].length;
+      diagnostics.push({ from: line.from, to: line.from + len + 1, severity: 'warning', message: 'Missing space after heading marker' });
+    }
+    if (text.trim() === '' && i >= 3) {
+      const prev1 = doc.line(i - 1).text.trim();
+      const prev2 = doc.line(i - 2).text.trim();
+      if (prev1 === '' && prev2 === '') {
+        diagnostics.push({ from: line.from, to: line.to, severity: 'info', message: 'Multiple consecutive blank lines' });
+      }
+    }
+    if (/[^\s]\s+$/.test(text)) {
+      const trailing = text.match(/(\s+)$/)[1];
+      if (trailing !== '  ') {
+        diagnostics.push({ from: line.to - trailing.length, to: line.to, severity: 'info', message: 'Trailing whitespace' });
+      }
+    }
+  }
+  return diagnostics;
+}
+
 // Tab state
 class Tab {
   constructor(filePath = null, content = '') {
@@ -231,8 +263,10 @@ class JadeApp {
     this.vimEnabled = false;
     this.wordWrapEnabled = true;
     this.currentTheme = this.loadTheme();
+    this.lintEnabled = false;
     this.vimCompartment = new Compartment();
     this.wrapCompartment = new Compartment();
+    this.lintCompartment = new Compartment();
 
     this.tabsEl = document.getElementById('tabs');
     this.editorPane = document.getElementById('editor-pane');
@@ -253,6 +287,7 @@ class JadeApp {
     this.bindIPC();
     this.bindUI();
     this.initAutoSave();
+    this.loadCustomCSS();
 
     // Apply saved theme
     this.setTheme(this.currentTheme);
@@ -276,6 +311,7 @@ class JadeApp {
     return [
       this.vimCompartment.of([]),
       this.wrapCompartment.of(this.wordWrapEnabled ? EditorView.lineWrapping : []),
+      this.lintCompartment.of([]),
       lineNumbers(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
@@ -376,6 +412,18 @@ class JadeApp {
     btn.title = `Word wrap (${this.wordWrapEnabled ? 'on' : 'off'})`;
     this.editor.dispatch({
       effects: this.wrapCompartment.reconfigure(this.wordWrapEnabled ? EditorView.lineWrapping : [])
+    });
+  }
+
+  toggleLint() {
+    this.lintEnabled = !this.lintEnabled;
+    const btn = document.getElementById('lint-btn');
+    btn.classList.toggle('active', this.lintEnabled);
+    btn.title = `Markdown lint (${this.lintEnabled ? 'on' : 'off'})`;
+    this.editor.dispatch({
+      effects: this.lintCompartment.reconfigure(
+        this.lintEnabled ? [lintGutter(), linter(lintMarkdown)] : []
+      )
     });
   }
 
@@ -662,6 +710,7 @@ class JadeApp {
     document.getElementById('vim-mode-btn').addEventListener('click', () => this.toggleVimMode());
     document.getElementById('wrap-btn').addEventListener('click', () => this.toggleWordWrap());
     document.getElementById('theme-btn').addEventListener('click', () => this.cycleTheme());
+    document.getElementById('lint-btn').addEventListener('click', () => this.toggleLint());
   }
 
   toolbarAction(action) {
@@ -732,6 +781,9 @@ class JadeApp {
     window.jade.onExportLatex(() => this.exportToLatex());
     window.jade.onOpenRecent((path) => this.openFile(path));
     window.jade.onSetTheme((theme) => this.setTheme(theme));
+    window.jade.onExportLatexProject(() => this.exportToLatexProject());
+    window.jade.onSelectCustomCSS(() => this.selectCustomCSS());
+    window.jade.onClearCustomCSS(() => this.clearCustomCSS());
   }
 
   bindUI() {
@@ -1079,13 +1131,27 @@ class JadeApp {
         h3 { font-size: 1.3em; }
         pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
         code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; font-size: 0.9em; }
-        pre code { background: none; padding: 0; }
+        pre code { background: none; padding: 0; font-size: 13px; line-height: 1.5; }
         blockquote { border-left: 3px solid #ddd; padding-left: 16px; margin: 0 0 1em; color: #666; }
         table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
         th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
         th { background: #f6f8fa; }
         hr { border: none; border-top: 1px solid #ddd; margin: 2em 0; }
         img { max-width: 100%; }
+        .katex-block { padding: 12px 0; overflow-x: auto; }
+        .hljs { color: #24292f; }
+        .hljs-keyword { color: #cf222e; }
+        .hljs-string { color: #0a3069; }
+        .hljs-comment { color: #6e7781; font-style: italic; }
+        .hljs-title, .hljs-function { color: #8250df; }
+        .hljs-number, .hljs-literal { color: #0550ae; }
+        .hljs-built_in, .hljs-type { color: #953800; }
+        .hljs-attr { color: #0550ae; }
+        .hljs-meta { color: #8250df; }
+        .hljs-params { color: #24292f; }
+        .hljs-tag, .hljs-name { color: #116329; }
+        .hljs-attribute { color: #0550ae; }
+        .hljs-punctuation { color: #24292f; }
       </style></head><body>${rendered}</body></html>`;
     await window.jade.exportPdf(html);
   }
@@ -1099,80 +1165,262 @@ class JadeApp {
     await window.jade.writeFile(result.filePath, latex);
   }
 
-  markdownToLatex(md) {
-    let tex = '\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{graphicx}\n\\usepackage{hyperref}\n\\usepackage{listings}\n\\usepackage{amsmath}\n\\usepackage[margin=1in]{geometry}\n\n';
-
-    const lines = md.split('\n');
-    let inCode = false;
-    let codeLang = '';
-    let codeLines = [];
+  markdownToLatex(mdText, options = {}) {
+    const lines = mdText.split('\n');
+    const result = [];
+    let i = 0;
     let title = '';
+    let inList = null;
+    const preamble = options.preamble !== false;
+    const sectionCmd = options.sectionCmd || 'section';
 
-    for (const line of lines) {
-      if (inCode) {
-        if (line.startsWith('```')) {
-          tex += '\\begin{lstlisting}' + (codeLang ? `[language=${codeLang}]` : '') + '\n';
-          tex += codeLines.join('\n') + '\n';
-          tex += '\\end{lstlisting}\n';
-          inCode = false;
-          codeLines = [];
-          codeLang = '';
+    const flushList = () => {
+      if (inList) { result.push(`\\end{${inList}}`); inList = null; }
+    };
+
+    if (preamble) {
+      for (const l of lines) { if (l.startsWith('# ')) { title = l.slice(2); break; } }
+      result.push('\\documentclass{article}', '\\usepackage[utf8]{inputenc}', '\\usepackage{graphicx}',
+        '\\usepackage{hyperref}', '\\usepackage{listings}', '\\usepackage{amsmath}',
+        '\\usepackage{amssymb}', '\\usepackage{booktabs}', '\\usepackage{soul}',
+        '\\usepackage[margin=1in]{geometry}', '');
+      if (title) { result.push(`\\title{${this.texEscape(title)}}`, '\\author{}', '\\date{}'); }
+      result.push('', '\\begin{document}');
+      if (title) result.push('\\maketitle');
+      result.push('');
+    }
+
+    let firstH1 = true;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      if (line.startsWith('```')) {
+        flushList();
+        const lang = line.slice(3).trim();
+        const codeLines = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith('```')) { codeLines.push(lines[i]); i++; }
+        if (i < lines.length) i++;
+        if (lang === 'mermaid') {
+          result.push('% Mermaid diagram (not rendered in LaTeX)', '\\begin{verbatim}', codeLines.join('\n'), '\\end{verbatim}');
         } else {
-          codeLines.push(line);
+          result.push('\\begin{lstlisting}' + (lang ? `[language=${lang}]` : ''), codeLines.join('\n'), '\\end{lstlisting}');
         }
         continue;
       }
 
-      if (line.startsWith('```')) {
-        inCode = true;
-        codeLang = line.slice(3).trim();
+      if (line.trim() === '$$') {
+        flushList();
+        result.push('\\[');
+        i++;
+        while (i < lines.length && lines[i].trim() !== '$$') { result.push(lines[i]); i++; }
+        if (i < lines.length) i++;
+        result.push('\\]');
+        continue;
+      }
+
+      if (/^\|.+\|/.test(line.trim())) {
+        flushList();
+        const tableRows = [];
+        while (i < lines.length && /^\|.+\|/.test(lines[i].trim())) {
+          const row = lines[i].trim();
+          if (/^\|[\s\-:|]+\|$/.test(row)) { i++; continue; }
+          tableRows.push(row.split('|').slice(1, -1).map(c => c.trim()));
+          i++;
+        }
+        if (tableRows.length > 0) {
+          const cols = tableRows[0].length;
+          result.push(`\\begin{tabular}{${'l '.repeat(cols).trim()}}`, '\\toprule');
+          result.push(tableRows[0].map(c => this.processInline(c)).join(' & ') + ' \\\\', '\\midrule');
+          for (let r = 1; r < tableRows.length; r++) {
+            result.push(tableRows[r].map(c => this.processInline(c)).join(' & ') + ' \\\\');
+          }
+          result.push('\\bottomrule', '\\end{tabular}', '');
+        }
         continue;
       }
 
       if (line.startsWith('# ')) {
-        if (!title) {
-          title = line.slice(2);
-          tex += `\\title{${this.texEscape(title)}}\n\\date{}\n\\begin{document}\n\\maketitle\n\n`;
-        } else {
-          tex += `\\section{${this.texEscape(line.slice(2))}}\n`;
-        }
-      } else if (line.startsWith('## ')) {
-        tex += `\\subsection{${this.texEscape(line.slice(3))}}\n`;
-      } else if (line.startsWith('### ')) {
-        tex += `\\subsubsection{${this.texEscape(line.slice(4))}}\n`;
-      } else if (line.startsWith('> ')) {
-        tex += `\\begin{quote}\n${this.texEscape(line.slice(2))}\n\\end{quote}\n`;
-      } else if (line.startsWith('---') || line.startsWith('***')) {
-        tex += '\\hrule\\vspace{1em}\n';
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        tex += `\\begin{itemize}\n\\item ${this.texEscape(line.slice(2))}\n\\end{itemize}\n`;
-      } else if (/^\d+\.\s/.test(line)) {
-        tex += `\\begin{enumerate}\n\\item ${this.texEscape(line.replace(/^\d+\.\s/, ''))}\n\\end{enumerate}\n`;
-      } else if (line.startsWith('![')) {
-        const match = line.match(/!\[([^\]]*)\]\(([^)]+)\)/);
-        if (match) {
-          tex += `\\begin{figure}[h]\n\\centering\n\\includegraphics[width=0.8\\textwidth]{${match[2]}}\n\\caption{${this.texEscape(match[1])}}\n\\end{figure}\n`;
-        }
-      } else {
-        let processed = this.texEscape(line);
-        processed = processed.replace(/\*\*(.+?)\*\*/g, '\\textbf{$1}');
-        processed = processed.replace(/\*(.+?)\*/g, '\\textit{$1}');
-        processed = processed.replace(/`(.+?)`/g, '\\texttt{$1}');
-        processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '\\href{$2}{$1}');
-        tex += processed + '\n';
+        flushList();
+        if (preamble && firstH1) { firstH1 = false; }
+        else { result.push(`\\${sectionCmd}{${this.texEscape(line.slice(2))}}`); }
+        i++; continue;
       }
+      if (line.startsWith('## ')) {
+        flushList();
+        const sub = sectionCmd === 'chapter' ? 'section' : 'subsection';
+        result.push(`\\${sub}{${this.texEscape(line.slice(3))}}`);
+        i++; continue;
+      }
+      if (line.startsWith('### ')) {
+        flushList();
+        const sub = sectionCmd === 'chapter' ? 'subsection' : 'subsubsection';
+        result.push(`\\${sub}{${this.texEscape(line.slice(4))}}`);
+        i++; continue;
+      }
+      if (line.startsWith('#### ')) {
+        flushList();
+        result.push(`\\paragraph{${this.texEscape(line.slice(5))}}`);
+        i++; continue;
+      }
+
+      if (line.startsWith('> ')) {
+        flushList();
+        const quoteLines = [];
+        while (i < lines.length && lines[i].startsWith('> ')) { quoteLines.push(lines[i].slice(2)); i++; }
+        result.push('\\begin{quote}', quoteLines.map(l => this.processInline(l)).join('\n'), '\\end{quote}');
+        continue;
+      }
+
+      if (/^[-*]\s/.test(line)) {
+        if (inList !== 'itemize') { flushList(); result.push('\\begin{itemize}'); inList = 'itemize'; }
+        const taskMatch = line.match(/^[-*]\s+\[([xX ])\]\s+(.*)/);
+        if (taskMatch) {
+          const checked = taskMatch[1] !== ' ';
+          result.push(`\\item[${checked ? '$\\boxtimes$' : '$\\square$'}] ${this.processInline(taskMatch[2])}`);
+        } else {
+          result.push(`\\item ${this.processInline(line.replace(/^[-*]\s+/, ''))}`);
+        }
+        i++; continue;
+      }
+
+      if (/^\d+\.\s/.test(line)) {
+        if (inList !== 'enumerate') { flushList(); result.push('\\begin{enumerate}'); inList = 'enumerate'; }
+        result.push(`\\item ${this.processInline(line.replace(/^\d+\.\s+/, ''))}`);
+        i++; continue;
+      }
+
+      if (/^(---|\*\*\*|___)/.test(line.trim()) && line.trim().length >= 3) {
+        flushList(); result.push('\\hrule\\vspace{1em}'); i++; continue;
+      }
+
+      const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+      if (imgMatch) {
+        flushList();
+        result.push('\\begin{figure}[h]', '\\centering', `\\includegraphics[width=0.8\\textwidth]{${imgMatch[2]}}`);
+        if (imgMatch[1]) result.push(`\\caption{${this.texEscape(imgMatch[1])}}`);
+        result.push('\\end{figure}');
+        i++; continue;
+      }
+
+      if (line.trim() === '') { flushList(); result.push(''); i++; continue; }
+
+      flushList();
+      result.push(this.processInline(line));
+      i++;
     }
 
-    if (!title) {
-      tex += '\\begin{document}\n\n' + tex.split('\\begin{document}\n\n').pop();
-    }
+    flushList();
+    if (preamble) { result.push('', '\\end{document}'); }
+    return result.join('\n');
+  }
 
-    tex += '\n\\end{document}\n';
-    return tex;
+  processInline(text) {
+    const ph = [];
+    let s = text;
+    s = s.replace(/\$\$(.+?)\$\$/g, (_, m) => { ph.push(`\\[${m}\\]`); return `\x01${ph.length - 1}\x01`; });
+    s = s.replace(/\$(.+?)\$/g, (_, m) => { ph.push(`$${m}$`); return `\x01${ph.length - 1}\x01`; });
+    s = s.replace(/`(.+?)`/g, (_, c) => { ph.push(`\\texttt{${this.texEscape(c)}}`); return `\x01${ph.length - 1}\x01`; });
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, a, u) => { ph.push(`\\includegraphics{${u}}`); return `\x01${ph.length - 1}\x01`; });
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, t, u) => { ph.push(`\\href{${u}}{${this.texEscape(t)}}`); return `\x01${ph.length - 1}\x01`; });
+    s = s.replace(/~~(.+?)~~/g, (_, t) => { ph.push(`\\sout{${this.texEscape(t)}}`); return `\x01${ph.length - 1}\x01`; });
+    s = this.texEscape(s);
+    s = s.replace(/\*\*(.+?)\*\*/g, '\\textbf{$1}');
+    s = s.replace(/\*(.+?)\*/g, '\\textit{$1}');
+    s = s.replace(/\x01(\d+)\x01/g, (_, idx) => ph[parseInt(idx)]);
+    return s;
   }
 
   texEscape(s) {
     return s.replace(/([&%$#_{}~^\\])/g, '\\$1');
+  }
+
+  texSlug(title) {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+  }
+
+  splitByH1(mdText) {
+    const lines = mdText.split('\n');
+    const sections = [];
+    let currentTitle = '';
+    let currentLines = [];
+    for (const line of lines) {
+      if (line.startsWith('# ')) {
+        if (currentLines.length > 0) sections.push({ title: currentTitle, content: currentLines.join('\n') });
+        currentTitle = line.slice(2);
+        currentLines = [line];
+      } else {
+        currentLines.push(line);
+      }
+    }
+    if (currentLines.length > 0) sections.push({ title: currentTitle, content: currentLines.join('\n') });
+    return sections;
+  }
+
+  async exportToLatexProject() {
+    const content = this.editor.state.doc.toString();
+    const sections = this.splitByH1(content);
+    if (sections.length < 2) return this.exportToLatex();
+
+    const dirResult = await window.jade.selectDirectory();
+    if (dirResult.canceled) return;
+    const dir = dirResult.path;
+    const docTitle = sections[0].title || 'Document';
+    const useReport = sections.length > 3;
+    const docClass = useReport ? 'report' : 'article';
+    const secCmd = useReport ? 'chapter' : 'section';
+
+    const chapterFiles = [];
+    for (let idx = 0; idx < sections.length; idx++) {
+      const sec = sections[idx];
+      const slug = this.texSlug(sec.title) || `section_${String(idx + 1).padStart(2, '0')}`;
+      chapterFiles.push(slug);
+      const latex = this.markdownToLatex(sec.content, { preamble: false, sectionCmd: secCmd });
+      await window.jade.writeFile(`${dir}/${slug}.tex`, latex);
+    }
+
+    const main = [
+      `\\documentclass{${docClass}}`, '\\usepackage[utf8]{inputenc}', '\\usepackage{graphicx}',
+      '\\usepackage{hyperref}', '\\usepackage{listings}', '\\usepackage{amsmath}',
+      '\\usepackage{amssymb}', '\\usepackage{booktabs}', '\\usepackage{soul}',
+      '\\usepackage[margin=1in]{geometry}', '',
+      `\\title{${this.texEscape(docTitle)}}`, '\\author{}', '\\date{\\today}', '',
+      '\\begin{document}', '\\maketitle', '\\tableofcontents', '\\newpage', '',
+      ...chapterFiles.map(f => `\\input{${f}}`),
+      '', '\\end{document}',
+    ];
+    await window.jade.writeFile(`${dir}/main.tex`, main.join('\n'));
+  }
+
+  // Custom CSS for preview
+  async loadCustomCSS() {
+    try {
+      const cssPath = localStorage.getItem('jade-custom-css');
+      if (!cssPath) return;
+      const result = await window.jade.readFile(cssPath);
+      if (result.success) this.applyCustomCSS(result.content);
+    } catch (_) {}
+  }
+
+  applyCustomCSS(css) {
+    let el = document.getElementById('custom-preview-css');
+    if (!el) { el = document.createElement('style'); el.id = 'custom-preview-css'; document.head.appendChild(el); }
+    el.textContent = css;
+  }
+
+  async selectCustomCSS() {
+    const result = await window.jade.openCSSFile();
+    if (result.canceled) return;
+    try { localStorage.setItem('jade-custom-css', result.path); } catch (_) {}
+    const file = await window.jade.readFile(result.path);
+    if (file.success) this.applyCustomCSS(file.content);
+  }
+
+  clearCustomCSS() {
+    try { localStorage.removeItem('jade-custom-css'); } catch (_) {}
+    const el = document.getElementById('custom-preview-css');
+    if (el) el.remove();
   }
 
   escapeHtml(str) {
