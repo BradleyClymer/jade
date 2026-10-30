@@ -6,26 +6,30 @@ app.disableHardwareAcceleration();
 app.on('window-all-closed', () => {});
 
 app.whenReady().then(async () => {
-  const win = new BrowserWindow({ show: false, width: 512, height: 512, webPreferences: { offscreen: true } });
+  const win = new BrowserWindow({
+    show: true,
+    width: 512,
+    height: 512,
+    transparent: true,
+    webPreferences: { offscreen: true }
+  });
   win.webContents.on('paint', () => {});
 
-  const svgPath = path.join(__dirname, 'icon.svg').replace(/\\/g, '/');
-  const html = `<!DOCTYPE html><html><head><style>body{margin:0;background:transparent;}</style></head><body><img src="file:///${svgPath}" width="512" height="512"></body></html>`;
-  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  const svgContent = fs.readFileSync(path.join(__dirname, 'icon.svg'), 'utf-8');
+  const html = `<!DOCTYPE html><html><head><style>*{margin:0;padding:0;}html,body{width:512px;height:512px;overflow:hidden;background:transparent;}</style></head><body>${svgContent}</body></html>`;
+  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  win.loadURL(dataUrl);
 
   await new Promise(r => win.webContents.on('did-finish-load', r));
-  await new Promise(r => setTimeout(r, 1000));
+  await new Promise(r => setTimeout(r, 2000));
 
   const image = await win.webContents.capturePage({ x: 0, y: 0, width: 512, height: 512 });
   const png = image.toPNG();
-
   fs.writeFileSync(path.join(__dirname, 'icon.png'), png);
-  console.log('Generated icon.png (' + png.length + ' bytes)');
 
-  // Also generate 256x256
   const image256 = image.resize({ width: 256, height: 256 });
   fs.writeFileSync(path.join(__dirname, 'icon_256.png'), image256.toPNG());
-  console.log('Generated icon_256.png');
 
+  fs.appendFileSync(path.join(__dirname, '..', 'capture_log.txt'), 'Icon: ' + png.length + ' bytes\n');
   app.quit();
 });

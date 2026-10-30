@@ -241,6 +241,28 @@ function buildMenu() {
           },
         },
         { type: 'separator' },
+        {
+          label: 'Theme: Jade',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('set-theme', 'jade');
+          },
+        },
+        {
+          label: 'Theme: Dark',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('set-theme', 'dark');
+          },
+        },
+        {
+          label: 'Theme: Light',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('set-theme', 'light');
+          },
+        },
+        { type: 'separator' },
         { role: 'toggleDevTools' },
       ],
     },

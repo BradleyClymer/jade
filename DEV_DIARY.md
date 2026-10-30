@@ -28,6 +28,10 @@
 - Mermaid diagram rendering in preview (dark jade theme)
 - Cross-platform build targets: Win (NSIS + portable), Mac (DMG, x64+arm64), Linux (AppImage + deb)
 - esbuild bundler for renderer (ES modules to IIFE)
+- WYSIWYG preview editing: contentEditable on preview pane, HTML-to-markdown sync on blur/Escape
+- Find/replace: Ctrl+F find, Ctrl+H replace (CM6 search panel with replace row)
+- Word wrap toggle in status bar (Compartment-based runtime reconfigure)
+- Theme selector: Jade (green), Dark, Light -- cycle in status bar or View menu, persisted in localStorage
 
 ### Architecture
 
@@ -44,14 +48,14 @@
 
 #### P0 -- usability blockers
 - [x] Build Windows NSIS installer (91 MB) and portable exe (83 MB) -- 2026-10-29
-- [ ] Run the NSIS installer, confirm Start menu shortcut and .md file association
-- [ ] Test the portable .exe with a real .md file
-- [ ] Confirm .md double-click opens Jade (not Notepad/Obsidian)
+- [x] Run the NSIS installer, confirm Start menu shortcut and .md file association -- 2026-10-30
+- [x] Test the portable .exe with a real .md file -- 2026-10-30
+- [x] Confirm .md double-click opens Jade (not Notepad/Obsidian) -- 2026-10-30
 
 #### P1 -- near-term features
-- [ ] WYSIWYG editing in the preview pane (contentEditable + DOM-to-markdown sync)
+- [x] WYSIWYG editing in the preview pane (contentEditable + DOM-to-markdown sync) -- 2026-10-30
 - [ ] LLM interaction panel (select text, send to LLM for rewrite/summarize/expand/ask)
-- [ ] Find/replace improvements (current uses CM6 default panel, could add Ctrl+H behavior)
+- [x] Find/replace (Ctrl+F find, Ctrl+H replace via CM6 search panel) -- 2026-10-30
 - [x] Recent files list (File menu) -- 2026-10-30
 - [x] Auto-save / recovery -- 2026-10-30
 - [x] Keyboard shortcuts for toolbar actions (Ctrl+B bold, Ctrl+I italic, etc.) -- 2026-10-30
@@ -64,8 +68,8 @@
 - [x] Preview: mermaid diagram rendering -- 2026-10-30
 - [x] Preview: math/KaTeX rendering -- 2026-10-30
 - [ ] Minimap (CM6 extension or custom)
-- [ ] Word wrap toggle
-- [ ] Theme selector (jade green, dark, light)
+- [x] Word wrap toggle -- 2026-10-30
+- [x] Theme selector (jade green, dark, light) -- 2026-10-30
 - [ ] Custom CSS for preview
 
 #### P3 -- stretch

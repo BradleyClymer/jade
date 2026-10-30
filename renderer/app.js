@@ -229,7 +229,10 @@ class JadeApp {
     this.updateTimer = null;
     this.scrollLocked = true;
     this.vimEnabled = false;
+    this.wordWrapEnabled = true;
+    this.currentTheme = this.loadTheme();
     this.vimCompartment = new Compartment();
+    this.wrapCompartment = new Compartment();
 
     this.tabsEl = document.getElementById('tabs');
     this.editorPane = document.getElementById('editor-pane');
@@ -246,9 +249,13 @@ class JadeApp {
     this.initDragDrop();
     this.initSyncScroll();
     this.initToolbar();
+    this.initWysiwyg();
     this.bindIPC();
     this.bindUI();
     this.initAutoSave();
+
+    // Apply saved theme
+    this.setTheme(this.currentTheme);
 
     // Open a blank tab to start
     this.newTab();
@@ -268,6 +275,7 @@ class JadeApp {
 
     return [
       this.vimCompartment.of([]),
+      this.wrapCompartment.of(this.wordWrapEnabled ? EditorView.lineWrapping : []),
       lineNumbers(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
@@ -286,7 +294,6 @@ class JadeApp {
       syntaxHighlighting(jadeHighlightStyle),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       markdown({ base: markdownLanguage, codeLanguages: languages }),
-      EditorView.lineWrapping,
       updateListener,
       keymap.of([
         { key: 'Mod-b', run: () => { this.toolbarAction('bold'); return true; } },
@@ -360,6 +367,186 @@ class JadeApp {
     this.editor.dispatch({
       effects: this.vimCompartment.reconfigure(this.vimEnabled ? vim() : [])
     });
+  }
+
+  toggleWordWrap() {
+    this.wordWrapEnabled = !this.wordWrapEnabled;
+    const btn = document.getElementById('wrap-btn');
+    btn.classList.toggle('active', this.wordWrapEnabled);
+    btn.title = `Word wrap (${this.wordWrapEnabled ? 'on' : 'off'})`;
+    this.editor.dispatch({
+      effects: this.wrapCompartment.reconfigure(this.wordWrapEnabled ? EditorView.lineWrapping : [])
+    });
+  }
+
+  // Theme
+  loadTheme() {
+    try { return localStorage.getItem('jade-theme') || 'jade'; } catch (_) { return 'jade'; }
+  }
+
+  setTheme(theme) {
+    this.currentTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('jade-theme', theme); } catch (_) {}
+    const btn = document.getElementById('theme-btn');
+    const labels = { jade: 'Jade', dark: 'Dark', light: 'Light' };
+    btn.textContent = labels[theme] || theme;
+  }
+
+  cycleTheme() {
+    const themes = ['jade', 'dark', 'light'];
+    const idx = themes.indexOf(this.currentTheme);
+    this.setTheme(themes[(idx + 1) % themes.length]);
+  }
+
+  // WYSIWYG preview editing
+  initWysiwyg() {
+    this.previewContent.setAttribute('contenteditable', 'true');
+    this.previewContent.setAttribute('spellcheck', 'true');
+    this._wysiwygActive = false;
+
+    this.previewContent.addEventListener('focus', () => {
+      this._wysiwygActive = true;
+    });
+
+    this.previewContent.addEventListener('blur', () => {
+      if (!this._wysiwygActive) return;
+      this._wysiwygActive = false;
+      this.syncPreviewToEditor();
+    });
+
+    this.previewContent.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this._wysiwygActive = false;
+        this.syncPreviewToEditor();
+        this.editor.focus();
+      }
+    });
+  }
+
+  syncPreviewToEditor() {
+    const html = this.previewContent.innerHTML;
+    const mdText = this.htmlToMarkdown(html);
+    const current = this.editor.state.doc.toString();
+    if (mdText !== current) {
+      this.editor.dispatch({
+        changes: { from: 0, to: this.editor.state.doc.length, insert: mdText }
+      });
+    }
+  }
+
+  htmlToMarkdown(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return this.nodeToMd(div).trim();
+  }
+
+  nodeToMd(node) {
+    let result = '';
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3) {
+        result += child.textContent;
+        continue;
+      }
+      if (child.nodeType !== 1) continue;
+      const tag = child.tagName.toLowerCase();
+      const inner = this.nodeToMd(child);
+      switch (tag) {
+        case 'h1': result += `# ${inner}\n\n`; break;
+        case 'h2': result += `## ${inner}\n\n`; break;
+        case 'h3': result += `### ${inner}\n\n`; break;
+        case 'h4': result += `#### ${inner}\n\n`; break;
+        case 'h5': result += `##### ${inner}\n\n`; break;
+        case 'h6': result += `###### ${inner}\n\n`; break;
+        case 'p': result += `${inner}\n\n`; break;
+        case 'br': result += '\n'; break;
+        case 'strong': case 'b': result += `**${inner}**`; break;
+        case 'em': case 'i': result += `*${inner}*`; break;
+        case 'del': case 's': result += `~~${inner}~~`; break;
+        case 'code':
+          if (child.parentElement && child.parentElement.tagName === 'PRE') {
+            result += inner;
+          } else {
+            result += `\`${inner}\``;
+          }
+          break;
+        case 'pre':
+          if (child.classList.contains('mermaid')) {
+            result += `\`\`\`mermaid\n${child.textContent}\n\`\`\`\n\n`;
+          } else {
+            const codeEl = child.querySelector('code');
+            const lang = codeEl ? (codeEl.className.match(/language-(\w+)/) || [])[1] || '' : '';
+            result += `\`\`\`${lang}\n${child.textContent}\n\`\`\`\n\n`;
+          }
+          break;
+        case 'a': {
+          const href = child.getAttribute('href') || '';
+          result += `[${inner}](${href})`;
+          break;
+        }
+        case 'img': {
+          const src = child.getAttribute('src') || '';
+          const alt = child.getAttribute('alt') || '';
+          result += `![${alt}](${src})`;
+          break;
+        }
+        case 'blockquote':
+          result += inner.split('\n').filter(l => l.trim()).map(l => `> ${l}`).join('\n') + '\n\n';
+          break;
+        case 'ul': case 'ol': {
+          let idx = 1;
+          for (const li of child.children) {
+            if (li.tagName === 'LI') {
+              const prefix = tag === 'ol' ? `${idx++}. ` : '- ';
+              const checkbox = li.querySelector('input[type="checkbox"]');
+              if (checkbox) {
+                result += `- [${checkbox.checked ? 'x' : ' '}] ${this.nodeToMd(li).replace(/^\s*/, '')}\n`;
+              } else {
+                result += `${prefix}${this.nodeToMd(li).trim()}\n`;
+              }
+            }
+          }
+          result += '\n';
+          break;
+        }
+        case 'hr': result += '---\n\n'; break;
+        case 'table': {
+          const rows = child.querySelectorAll('tr');
+          const tableRows = [];
+          rows.forEach((row, ri) => {
+            const cells = Array.from(row.querySelectorAll('th, td')).map(c => c.textContent.trim());
+            tableRows.push('| ' + cells.join(' | ') + ' |');
+            if (ri === 0) {
+              tableRows.push('| ' + cells.map(() => '---').join(' | ') + ' |');
+            }
+          });
+          result += tableRows.join('\n') + '\n\n';
+          break;
+        }
+        case 'div':
+          if (child.classList.contains('katex-block')) {
+            const tex = child.querySelector('annotation[encoding="application/x-tex"]');
+            if (tex) result += `$$\n${tex.textContent}\n$$\n\n`;
+            else result += inner;
+          } else {
+            result += inner;
+          }
+          break;
+        case 'span':
+          if (child.classList.contains('katex')) {
+            const tex = child.querySelector('annotation[encoding="application/x-tex"]');
+            if (tex) result += `$${tex.textContent}$`;
+            else result += inner;
+          } else {
+            result += inner;
+          }
+          break;
+        case 'input': break;
+        case 'li': result += inner; break;
+        default: result += inner;
+      }
+    }
+    return result;
   }
 
   initLayout() {
@@ -473,6 +660,8 @@ class JadeApp {
 
     document.getElementById('scroll-lock-btn').addEventListener('click', () => this.toggleScrollLock());
     document.getElementById('vim-mode-btn').addEventListener('click', () => this.toggleVimMode());
+    document.getElementById('wrap-btn').addEventListener('click', () => this.toggleWordWrap());
+    document.getElementById('theme-btn').addEventListener('click', () => this.cycleTheme());
   }
 
   toolbarAction(action) {
@@ -542,6 +731,7 @@ class JadeApp {
     window.jade.onExportPdf(() => this.exportToPdf());
     window.jade.onExportLatex(() => this.exportToLatex());
     window.jade.onOpenRecent((path) => this.openFile(path));
+    window.jade.onSetTheme((theme) => this.setTheme(theme));
   }
 
   bindUI() {
@@ -794,6 +984,7 @@ class JadeApp {
   }
 
   async updatePreview() {
+    if (this._wysiwygActive) return;
     const content = this.editor.state.doc.toString();
     mermaidCounter = 0;
     const html = md.render(content);

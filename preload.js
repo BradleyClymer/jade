@@ -24,4 +24,5 @@ contextBridge.exposeInMainWorld('jade', {
   onExportPdf: (cb) => ipcRenderer.on('export-pdf', () => cb()),
   onExportLatex: (cb) => ipcRenderer.on('export-latex', () => cb()),
   onOpenRecent: (cb) => ipcRenderer.on('open-recent', (_, path) => cb(path)),
+  onSetTheme: (cb) => ipcRenderer.on('set-theme', (_, theme) => cb(theme)),
 });
