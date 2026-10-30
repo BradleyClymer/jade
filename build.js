@@ -1,5 +1,6 @@
 const esbuild = require('esbuild');
 const path = require('path');
+const fs = require('fs');
 
 esbuild.build({
   entryPoints: [path.join(__dirname, 'renderer', 'app.js')],
@@ -13,7 +14,17 @@ esbuild.build({
     'process.env.NODE_ENV': '"production"',
   },
 }).then(() => {
-  console.log('Build complete: dist/bundle.js');
+  // Copy KaTeX CSS and fonts to dist/ for packaging
+  const katexDist = path.join(__dirname, 'node_modules', 'katex', 'dist');
+  fs.copyFileSync(path.join(katexDist, 'katex.min.css'), path.join(__dirname, 'dist', 'katex.min.css'));
+  const fontsDir = path.join(__dirname, 'dist', 'fonts');
+  if (!fs.existsSync(fontsDir)) fs.mkdirSync(fontsDir, { recursive: true });
+  for (const f of fs.readdirSync(path.join(katexDist, 'fonts'))) {
+    if (f.endsWith('.woff2')) {
+      fs.copyFileSync(path.join(katexDist, 'fonts', f), path.join(fontsDir, f));
+    }
+  }
+  console.log('Build complete: dist/bundle.js + KaTeX assets');
 }).catch((err) => {
   console.error('Build failed:', err);
   process.exit(1);

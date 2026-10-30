@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 let windows = [];
+let recentFiles = [];
 
 function createWindow(filePath) {
   const win = new BrowserWindow({
@@ -78,6 +79,29 @@ function buildMenu() {
             }
           },
         },
+        {
+          label: 'Open Recent',
+          submenu: recentFiles.length > 0
+            ? [
+                ...recentFiles.map(f => ({
+                  label: f.length > 60 ? '...' + f.slice(-57) : f,
+                  click: () => {
+                    const win = getActiveWindow();
+                    if (win) win.webContents.send('open-recent', f);
+                  },
+                })),
+                { type: 'separator' },
+                {
+                  label: 'Clear Recent',
+                  click: () => {
+                    recentFiles = [];
+                    buildMenu();
+                  },
+                },
+              ]
+            : [{ label: 'No Recent Files', enabled: false }],
+        },
+        { type: 'separator' },
         {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
@@ -338,6 +362,11 @@ ipcMain.handle('get-title', (event, filePath, modified) => {
   const dir = filePath ? path.dirname(filePath) : '';
   const mod = modified ? ' *' : '';
   return `${name}${mod} - Jade${dir ? ' - ' + dir : ''}`;
+});
+
+ipcMain.on('update-recent-files', (event, files) => {
+  recentFiles = files;
+  buildMenu();
 });
 
 ipcMain.on('set-title', (event, title) => {

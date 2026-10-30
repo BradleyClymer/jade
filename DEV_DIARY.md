@@ -21,6 +21,11 @@
 - Status bar: file path, cursor position, word count, encoding, scroll lock, vim toggle
 - File associations for .md/.markdown in electron-builder config
 - CLI file open: `jade myfile.md`
+- Keyboard shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+K link, Ctrl+Shift+K code, Ctrl+Shift+X strikethrough
+- Recent files list (File > Open Recent, persisted in localStorage, up to 10 entries)
+- Auto-save every 30s for files with a saved path
+- KaTeX math rendering: `$inline$` and `$$block$$` LaTeX math in preview
+- Mermaid diagram rendering in preview (dark jade theme)
 - Cross-platform build targets: Win (NSIS + portable), Mac (DMG, x64+arm64), Linux (AppImage + deb)
 - esbuild bundler for renderer (ES modules to IIFE)
 
@@ -47,17 +52,17 @@
 - [ ] WYSIWYG editing in the preview pane (contentEditable + DOM-to-markdown sync)
 - [ ] LLM interaction panel (select text, send to LLM for rewrite/summarize/expand/ask)
 - [ ] Find/replace improvements (current uses CM6 default panel, could add Ctrl+H behavior)
-- [ ] Recent files list (File menu)
-- [ ] Auto-save / recovery
-- [ ] Keyboard shortcuts for toolbar actions (Ctrl+B bold, Ctrl+I italic, etc.)
+- [x] Recent files list (File menu) -- 2026-10-30
+- [x] Auto-save / recovery -- 2026-10-30
+- [x] Keyboard shortcuts for toolbar actions (Ctrl+B bold, Ctrl+I italic, etc.) -- 2026-10-30
 
 #### P2 -- polish
 - [ ] LaTeX export: consecutive list items should merge into one itemize/enumerate block
 - [ ] LaTeX export: table support
 - [ ] PDF export: syntax-highlighted code blocks (currently plain)
 - [ ] PDF export: user-selectable page size / margins
-- [ ] Preview: mermaid diagram rendering
-- [ ] Preview: math/KaTeX rendering
+- [x] Preview: mermaid diagram rendering -- 2026-10-30
+- [x] Preview: math/KaTeX rendering -- 2026-10-30
 - [ ] Minimap (CM6 extension or custom)
 - [ ] Word wrap toggle
 - [ ] Theme selector (jade green, dark, light)

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('jade', {
   setTitle: (title) => ipcRenderer.send('set-title', title),
   exportPdf: (html) => ipcRenderer.invoke('export-pdf', html),
   exportLatex: () => ipcRenderer.invoke('export-latex'),
+  updateRecentFiles: (files) => ipcRenderer.send('update-recent-files', files),
 
   onOpenFile: (cb) => ipcRenderer.on('open-file', (_, path) => cb(path)),
   onNewFile: (cb) => ipcRenderer.on('new-file', () => cb()),
@@ -22,4 +23,5 @@ contextBridge.exposeInMainWorld('jade', {
   onReplace: (cb) => ipcRenderer.on('replace', () => cb()),
   onExportPdf: (cb) => ipcRenderer.on('export-pdf', () => cb()),
   onExportLatex: (cb) => ipcRenderer.on('export-latex', () => cb()),
+  onOpenRecent: (cb) => ipcRenderer.on('open-recent', (_, path) => cb(path)),
 });

@@ -10,6 +10,7 @@ import { tags } from '@lezer/highlight';
 import { vim } from '@replit/codemirror-vim';
 import MarkdownIt from 'markdown-it';
 import mermaid from 'mermaid';
+import katex from 'katex';
 import hljs from 'highlight.js/lib/core';
 
 // Register common languages for code highlighting
@@ -122,6 +123,58 @@ md.use(function taskListPlugin(md) {
   });
 });
 
+// KaTeX math: $inline$ and $$block$$
+md.use(function mathPlugin(md) {
+  md.inline.ruler.after('escape', 'math_inline', (state, silent) => {
+    if (state.src[state.pos] !== '$' || state.src[state.pos + 1] === '$') return false;
+    const start = state.pos + 1;
+    let end = state.src.indexOf('$', start);
+    if (end === -1 || end === start) return false;
+    if (!silent) {
+      const token = state.push('math_inline', 'math', 0);
+      token.markup = '$';
+      token.content = state.src.slice(start, end);
+    }
+    state.pos = end + 1;
+    return true;
+  });
+
+  md.block.ruler.before('fence', 'math_block', (state, startLine, endLine, silent) => {
+    const startPos = state.bMarks[startLine] + state.tShift[startLine];
+    if (state.src.slice(startPos, startPos + 2) !== '$$') return false;
+    if (silent) return true;
+    let nextLine = startLine + 1;
+    while (nextLine < endLine) {
+      const pos = state.bMarks[nextLine] + state.tShift[nextLine];
+      if (state.src.slice(pos, pos + 2) === '$$') break;
+      nextLine++;
+    }
+    const content = state.getLines(startLine + 1, nextLine, state.tShift[startLine], false).trim();
+    const token = state.push('math_block', 'math', 0);
+    token.block = true;
+    token.content = content;
+    token.markup = '$$';
+    state.line = nextLine + 1;
+    return true;
+  });
+
+  md.renderer.rules.math_inline = (tokens, idx) => {
+    try {
+      return katex.renderToString(tokens[idx].content, { throwOnError: false });
+    } catch (_) {
+      return `<code>${md.utils.escapeHtml(tokens[idx].content)}</code>`;
+    }
+  };
+
+  md.renderer.rules.math_block = (tokens, idx) => {
+    try {
+      return '<div class="katex-block">' + katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: true }) + '</div>';
+    } catch (_) {
+      return `<pre><code>${md.utils.escapeHtml(tokens[idx].content)}</code></pre>`;
+    }
+  };
+});
+
 // Jade highlight style for the editor
 const jadeHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: 'var(--syntax-heading)', fontWeight: 'bold' },
@@ -185,6 +238,8 @@ class JadeApp {
     this.statusCursor = document.getElementById('status-cursor');
     this.statusWords = document.getElementById('status-words');
 
+    this.recentFiles = this.loadRecentFiles();
+
     this.initEditor();
     this.initLayout();
     this.initDivider();
@@ -193,6 +248,7 @@ class JadeApp {
     this.initToolbar();
     this.bindIPC();
     this.bindUI();
+    this.initAutoSave();
 
     // Open a blank tab to start
     this.newTab();
@@ -233,6 +289,11 @@ class JadeApp {
       EditorView.lineWrapping,
       updateListener,
       keymap.of([
+        { key: 'Mod-b', run: () => { this.toolbarAction('bold'); return true; } },
+        { key: 'Mod-i', run: () => { this.toolbarAction('italic'); return true; } },
+        { key: 'Mod-k', run: () => { this.toolbarAction('link'); return true; } },
+        { key: 'Mod-Shift-k', run: () => { this.toolbarAction('code'); return true; } },
+        { key: 'Mod-Shift-x', run: () => { this.toolbarAction('strikethrough'); return true; } },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...searchKeymap,
@@ -480,10 +541,53 @@ class JadeApp {
     window.jade.onReplace(() => openSearchPanel(this.editor));
     window.jade.onExportPdf(() => this.exportToPdf());
     window.jade.onExportLatex(() => this.exportToLatex());
+    window.jade.onOpenRecent((path) => this.openFile(path));
   }
 
   bindUI() {
     document.getElementById('new-tab-btn').addEventListener('click', () => this.newTab());
+  }
+
+  // Recent files
+  loadRecentFiles() {
+    try {
+      return JSON.parse(localStorage.getItem('jade-recent-files') || '[]');
+    } catch (_) {
+      return [];
+    }
+  }
+
+  addRecentFile(filePath) {
+    if (!filePath) return;
+    this.recentFiles = this.recentFiles.filter(f => f !== filePath);
+    this.recentFiles.unshift(filePath);
+    if (this.recentFiles.length > 10) this.recentFiles.length = 10;
+    try {
+      localStorage.setItem('jade-recent-files', JSON.stringify(this.recentFiles));
+    } catch (_) {}
+    window.jade.updateRecentFiles(this.recentFiles);
+  }
+
+  // Auto-save
+  initAutoSave() {
+    setInterval(() => this.autoSave(), 30000);
+  }
+
+  async autoSave() {
+    for (let i = 0; i < this.tabs.length; i++) {
+      const tab = this.tabs[i];
+      if (!tab.filePath) continue;
+      if (i === this.activeTabIndex) tab.editorState = this.editor.state;
+      const content = tab.editorState ? tab.editorState.doc.toString() : '';
+      if (content !== tab.savedContent) {
+        const result = await window.jade.writeFile(tab.filePath, content);
+        if (result.success) {
+          tab.savedContent = content;
+          this.renderTabs();
+          this.updateWindowTitle();
+        }
+      }
+    }
   }
 
   // Tab management
@@ -623,6 +727,7 @@ class JadeApp {
       this.tabs.push(tab);
       this.switchToTab(this.tabs.length - 1);
     }
+    this.addRecentFile(filePath);
     this.renderTabs();
     this.updatePreview();
   }

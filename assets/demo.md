@@ -68,6 +68,14 @@ The original turbo encabulator achieved a sinusoidal deplanaration index of **0.
 2. **Semi-boloid** — every seventh conductor bypassed, reduced deplanaration
 3. **Cardinal** — differential girdlespring at full engagement, maximum reluctance damping
 
+## Governing Equations
+
+The sinusoidal deplanaration index $\delta$ across $n$ marzlevanes is given by:
+
+$$\delta = \frac{1}{n} \sum_{i=1}^{n} \frac{H_i \cdot \kappa}{R_{\text{waneshaft}} + \epsilon}$$
+
+where $H_i$ is the hydrocoptic index of the $i$-th marzlevane, $\kappa = 0.0042$ is the deplanaration coefficient, and $R_{\text{waneshaft}}$ is the lunar waneshaft reluctance in volts. The Penrose limit for non-reversible tremie configurations requires $\delta < 0.002$.
+
 ## References
 
 - Bud Haggart, *Turbo Encabulator Theory and Practice*, Rockwell Automation, 1977
