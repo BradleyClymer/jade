@@ -9,5 +9,8 @@ release/
 capture.js
 capture_log.txt
 jade_screenshot.png
+assets/capture_screenshot.js
+assets/gen_icon.js
+assets/icon_256.png
 .DS_Store
 Thumbs.db
