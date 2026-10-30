@@ -37,6 +37,9 @@
 - PDF export: syntax-highlighted code blocks (highlight.js GitHub-light CSS in the PDF template)
 - Markdown linting: toggleable lint gutter (missing heading space, consecutive blank lines, trailing whitespace); CM6 lint extension with Compartment toggle
 - Custom CSS for preview: load user .css file via View menu, persisted in localStorage, applied as a `<style>` overlay
+- Outline / document map panel: toggle via Ctrl+Shift+O or status bar, shows headings H1-H6 with indentation, highlights active section based on cursor, click to jump
+- Image paste from clipboard: Ctrl+V pastes clipboard images, saves to `images/` subfolder with timestamp filename, inserts relative markdown link
+- PDF page size selection: Letter/A4/Legal via File menu sub-menu, persisted in localStorage
 
 ### Architecture
 
@@ -69,7 +72,7 @@
 - [x] LaTeX export: consecutive list items merged, table support (booktabs), math passthrough -- 2026-10-30
 - [x] LaTeX export: multi-file project (File > Export as LaTeX Project) -- 2026-10-30
 - [x] PDF export: syntax-highlighted code blocks -- 2026-10-30
-- [ ] PDF export: user-selectable page size / margins
+- [x] PDF export: user-selectable page size / margins (Letter/A4/Legal via File menu + localStorage) -- 2026-10-30
 - [x] Preview: mermaid diagram rendering -- 2026-10-30
 - [x] Preview: math/KaTeX rendering -- 2026-10-30
 - [ ] Minimap (CM6 extension or custom)
@@ -78,11 +81,18 @@
 - [x] Custom CSS for preview (View > Custom Preview CSS) -- 2026-10-30
 - [x] Markdown linting toggle in status bar -- 2026-10-30
 
+#### P2.5 -- next up
+- [ ] LaTeX editing: open .tex files with TeX syntax highlighting + latex.js rendered preview
+- [ ] Minimap (CM6 extension or custom canvas)
+- [ ] Spell check (beyond browser default -- custom dictionary, ignore code blocks)
+- [ ] Snippets (user-defined text expansions)
+
 #### P3 -- stretch
 - [ ] Plugin system
 - [ ] Git integration (diff view, commit from editor)
 - [ ] Multi-window support (separate windows, not just tabs)
 - [ ] Collaborative editing (CRDT)
+- [ ] Markdown table editor (visual grid, tab between cells)
 
 ### Cross-platform notes
 

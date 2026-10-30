@@ -263,7 +263,9 @@ class JadeApp {
     this.vimEnabled = false;
     this.wordWrapEnabled = true;
     this.currentTheme = this.loadTheme();
+    this.outlineVisible = false;
     this.lintEnabled = false;
+    this.pdfPageSize = this.loadPdfPageSize();
     this.vimCompartment = new Compartment();
     this.wrapCompartment = new Compartment();
     this.lintCompartment = new Compartment();
@@ -302,6 +304,7 @@ class JadeApp {
         this.schedulePreviewUpdate();
         this.updateTabModified();
         this.updateWindowTitle();
+        this.updateOutline();
       }
       if (update.selectionSet || update.docChanged) {
         this.updateCursorStatus();
@@ -331,12 +334,27 @@ class JadeApp {
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       updateListener,
+      EditorView.domEventHandlers({
+        paste: (event) => {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              event.preventDefault();
+              this.handleImagePaste(item);
+              return true;
+            }
+          }
+          return false;
+        }
+      }),
       keymap.of([
         { key: 'Mod-b', run: () => { this.toolbarAction('bold'); return true; } },
         { key: 'Mod-i', run: () => { this.toolbarAction('italic'); return true; } },
         { key: 'Mod-k', run: () => { this.toolbarAction('link'); return true; } },
         { key: 'Mod-Shift-k', run: () => { this.toolbarAction('code'); return true; } },
         { key: 'Mod-Shift-x', run: () => { this.toolbarAction('strikethrough'); return true; } },
+        { key: 'Mod-Shift-o', run: () => { this.toggleOutline(); return true; } },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...searchKeymap,
@@ -711,6 +729,15 @@ class JadeApp {
     document.getElementById('wrap-btn').addEventListener('click', () => this.toggleWordWrap());
     document.getElementById('theme-btn').addEventListener('click', () => this.cycleTheme());
     document.getElementById('lint-btn').addEventListener('click', () => this.toggleLint());
+    document.getElementById('outline-btn').addEventListener('click', () => this.toggleOutline());
+    document.getElementById('outline-close').addEventListener('click', () => this.toggleOutline());
+    document.getElementById('outline-content').addEventListener('click', (e) => {
+      const item = e.target.closest('.outline-item');
+      if (!item) return;
+      const from = parseInt(item.dataset.from);
+      this.editor.dispatch({ selection: { anchor: from }, effects: EditorView.scrollIntoView(from, { y: 'start' }) });
+      this.editor.focus();
+    });
   }
 
   toolbarAction(action) {
@@ -784,6 +811,8 @@ class JadeApp {
     window.jade.onExportLatexProject(() => this.exportToLatexProject());
     window.jade.onSelectCustomCSS(() => this.selectCustomCSS());
     window.jade.onClearCustomCSS(() => this.clearCustomCSS());
+    window.jade.onToggleOutline(() => this.toggleOutline());
+    window.jade.onSetPdfPageSize((size) => this.setPdfPageSize(size));
   }
 
   bindUI() {
@@ -1120,6 +1149,66 @@ class JadeApp {
     window.jade.setTitle(title);
   }
 
+  // Outline panel
+  toggleOutline() {
+    this.outlineVisible = !this.outlineVisible;
+    document.getElementById('outline-panel').classList.toggle('outline-hidden', !this.outlineVisible);
+    document.getElementById('outline-btn').classList.toggle('active', this.outlineVisible);
+    if (this.outlineVisible) this.updateOutline();
+  }
+
+  updateOutline() {
+    if (!this.outlineVisible) return;
+    const content = document.getElementById('outline-content');
+    const doc = this.editor.state.doc;
+    const items = [];
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      const match = line.text.match(/^(#{1,6})\s+(.+)/);
+      if (match) items.push({ level: match[1].length, text: match[2], from: line.from });
+    }
+    const cursorLine = doc.lineAt(this.editor.state.selection.main.head).number;
+    let activeIdx = -1;
+    for (let j = items.length - 1; j >= 0; j--) {
+      const itemLine = doc.lineAt(items[j].from).number;
+      if (itemLine <= cursorLine) { activeIdx = j; break; }
+    }
+    content.innerHTML = items.map((item, idx) =>
+      `<div class="outline-item outline-h${item.level}${idx === activeIdx ? ' active' : ''}" data-from="${item.from}">${this.escapeHtml(item.text)}</div>`
+    ).join('');
+  }
+
+  // Image paste from clipboard
+  async handleImagePaste(item) {
+    const blob = item.getAsFile();
+    if (!blob) return;
+    const tab = this.tabs[this.activeTabIndex];
+    if (!tab.filePath) return;
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binary);
+    const ext = (item.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const dir = tab.filePath.replace(/[\\/][^\\/]+$/, '') + '/images';
+    const filename = `paste_${Date.now()}.${ext}`;
+    const result = await window.jade.saveImage(dir, filename, base64);
+    if (result.success) {
+      const relPath = 'images/' + filename;
+      this.insertAtCursor(`![](${relPath})`);
+    }
+  }
+
+  // PDF settings
+  loadPdfPageSize() {
+    try { return localStorage.getItem('jade-pdf-pagesize') || 'Letter'; } catch (_) { return 'Letter'; }
+  }
+
+  setPdfPageSize(size) {
+    this.pdfPageSize = size;
+    try { localStorage.setItem('jade-pdf-pagesize', size); } catch (_) {}
+  }
+
   async exportToPdf() {
     const content = this.editor.state.doc.toString();
     const rendered = md.render(content);
@@ -1153,7 +1242,7 @@ class JadeApp {
         .hljs-attribute { color: #0550ae; }
         .hljs-punctuation { color: #24292f; }
       </style></head><body>${rendered}</body></html>`;
-    await window.jade.exportPdf(html);
+    await window.jade.exportPdf(html, this.pdfPageSize);
   }
 
   async exportToLatex() {

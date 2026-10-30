@@ -7,7 +7,8 @@ contextBridge.exposeInMainWorld('jade', {
   confirmDiscard: (fileName) => ipcRenderer.invoke('confirm-discard', fileName),
   getTitle: (filePath, modified) => ipcRenderer.invoke('get-title', filePath, modified),
   setTitle: (title) => ipcRenderer.send('set-title', title),
-  exportPdf: (html) => ipcRenderer.invoke('export-pdf', html),
+  exportPdf: (html, pageSize) => ipcRenderer.invoke('export-pdf', html, pageSize),
+  saveImage: (dir, filename, base64) => ipcRenderer.invoke('save-image', dir, filename, base64),
   exportLatex: () => ipcRenderer.invoke('export-latex'),
   updateRecentFiles: (files) => ipcRenderer.send('update-recent-files', files),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
@@ -30,4 +31,6 @@ contextBridge.exposeInMainWorld('jade', {
   onExportLatexProject: (cb) => ipcRenderer.on('export-latex-project', () => cb()),
   onSelectCustomCSS: (cb) => ipcRenderer.on('select-custom-css', () => cb()),
   onClearCustomCSS: (cb) => ipcRenderer.on('clear-custom-css', () => cb()),
+  onToggleOutline: (cb) => ipcRenderer.on('toggle-outline', () => cb()),
+  onSetPdfPageSize: (cb) => ipcRenderer.on('set-pdf-page-size', (_, size) => cb(size)),
 });

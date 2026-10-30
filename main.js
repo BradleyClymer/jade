@@ -142,6 +142,33 @@ function buildMenu() {
         },
         { type: 'separator' },
         {
+          label: 'PDF Page Size',
+          submenu: [
+            {
+              label: 'Letter',
+              click: () => {
+                const win = getActiveWindow();
+                if (win) win.webContents.send('set-pdf-page-size', 'Letter');
+              },
+            },
+            {
+              label: 'A4',
+              click: () => {
+                const win = getActiveWindow();
+                if (win) win.webContents.send('set-pdf-page-size', 'A4');
+              },
+            },
+            {
+              label: 'Legal',
+              click: () => {
+                const win = getActiveWindow();
+                if (win) win.webContents.send('set-pdf-page-size', 'Legal');
+              },
+            },
+          ],
+        },
+        { type: 'separator' },
+        {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => createWindow(null),
@@ -271,6 +298,15 @@ function buildMenu() {
         },
         { type: 'separator' },
         {
+          label: 'Toggle Outline',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-outline');
+          },
+        },
+        { type: 'separator' },
+        {
           label: 'Custom Preview CSS...',
           click: () => {
             const win = getActiveWindow();
@@ -353,7 +389,7 @@ ipcMain.handle('confirm-discard', async (event, fileName) => {
   return response; // 0=Save, 1=Don't Save, 2=Cancel
 });
 
-ipcMain.handle('export-pdf', async (event, htmlContent) => {
+ipcMain.handle('export-pdf', async (event, htmlContent, pageSize) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
@@ -369,7 +405,7 @@ ipcMain.handle('export-pdf', async (event, htmlContent) => {
         const pdfData = await pdfWin.webContents.printToPDF({
           marginsType: 0,
           printBackground: true,
-          pageSize: 'Letter',
+          pageSize: pageSize || 'Letter',
         });
         await fs.promises.writeFile(filePath, pdfData);
         resolve({ success: true, path: filePath });
@@ -389,6 +425,17 @@ ipcMain.handle('export-latex', async (event) => {
   });
   if (canceled) return { canceled: true };
   return { canceled: false, filePath };
+});
+
+ipcMain.handle('save-image', async (event, dir, filename, base64) => {
+  try {
+    await fs.promises.mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, filename);
+    await fs.promises.writeFile(filePath, Buffer.from(base64, 'base64'));
+    return { success: true, path: filePath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('select-directory', async (event) => {
