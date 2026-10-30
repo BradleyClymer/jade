@@ -367,6 +367,18 @@ html, body {
   color: var(--syntax-string);
 }
 
+#preview-content pre.hidden {
+  display: none;
+}
+
+#preview-content pre.mermaid {
+  background: transparent;
+  padding: 16px 0;
+  text-align: center;
+  border: none;
+  border-radius: 0;
+}
+
 #preview-content pre {
   background: var(--preview-code-bg);
   padding: 16px;

@@ -6,24 +6,21 @@ The turbo encabulator uses a base plate of pre-famulated amulite, surmounted by 
 
 ## Functional Block Diagram
 
-```
-  ┌──────────────────────────────────────────────────┐
-  │            TURBO ENCABULATOR CORE                 │
-  │                                                    │
-  │   ┌─────────┐    ┌──────────┐    ┌────────────┐  │
-  │   │ Spurving │───▶│ Hydroco- │───▶│ Ambifacient│  │
-  │   │ Bearing  │    │ ptic Fan │    │ Waneshaft  │  │
-  │   │ (×2)     │    │ (6-vane) │    │            │  │
-  │   └─────────┘    └──────────┘    └─────┬──────┘  │
-  │        │                                │         │
-  │        ▼                                ▼         │
-  │   ┌─────────┐                    ┌────────────┐  │
-  │   │ Dingle  │                    │ Gramme-    │  │
-  │   │ Arm     │◀──── Feedback ────▶│ ter Array  │  │
-  │   │ Assembly│                    │ (bi-dir)   │  │
-  │   └─────────┘                    └────────────┘  │
-  │                                                    │
-  └──────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    SB["Spurving<br/>Bearing (×2)"] --> HF["Hydrocoptic<br/>Fan (6-vane)"]
+    HF --> AW["Ambifacient<br/>Lunar Waneshaft"]
+    AW --> GA["Grammeter<br/>Array (bi-dir)"]
+    GA -- Feedback --> DA["Dingle Arm<br/>Assembly"]
+    DA -- Feedback --> GA
+    SB --> DA
+    subgraph core ["TURBO ENCABULATOR CORE"]
+        SB
+        HF
+        AW
+        GA
+        DA
+    end
 ```
 
 ## Key Parameters

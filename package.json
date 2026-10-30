@@ -44,8 +44,18 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "assets/icon.png"
     },
@@ -57,19 +67,38 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.png"
     },
     "linux": {
       "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "TextEditor",
       "icon": "assets/icon.png",
-      "mimeTypes": ["text/markdown", "text/x-markdown"]
+      "mimeTypes": [
+        "text/markdown",
+        "text/x-markdown"
+      ]
     }
   },
   "repository": {
@@ -90,7 +119,8 @@
     "@lezer/highlight": "^1.2.1",
     "@replit/codemirror-vim": "^6.4.0",
     "highlight.js": "^11.11.1",
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.1.0",
+    "mermaid": "^11.4.1"
   },
   "devDependencies": {
     "electron": "^36.3.2",

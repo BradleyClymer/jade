@@ -9,6 +9,7 @@ import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } 
 import { tags } from '@lezer/highlight';
 import { vim } from '@replit/codemirror-vim';
 import MarkdownIt from 'markdown-it';
+import mermaid from 'mermaid';
 import hljs from 'highlight.js/lib/core';
 
 // Register common languages for code highlighting
@@ -53,12 +54,37 @@ hljs.registerLanguage('markdown', markdown_hljs);
 hljs.registerLanguage('md', markdown_hljs);
 hljs.registerLanguage('diff', diff);
 
+// Mermaid config
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#2a5a3a',
+    primaryTextColor: '#c8e6d0',
+    primaryBorderColor: '#4a8a5a',
+    lineColor: '#6aaa7a',
+    secondaryColor: '#1a3a2a',
+    tertiaryColor: '#0e2a1a',
+    background: '#1a2e1a',
+    mainBkg: '#2a5a3a',
+    nodeBorder: '#4a8a5a',
+    clusterBkg: '#1a3a2a',
+    titleColor: '#c8e6d0',
+    edgeLabelBackground: '#1a2e1a',
+  },
+});
+let mermaidCounter = 0;
+
 // Markdown renderer
 const md = new MarkdownIt({
   html: true,
   linkify: true,
   typographer: true,
   highlight: (str, lang) => {
+    if (lang === 'mermaid') {
+      const id = `mermaid-${mermaidCounter++}`;
+      return `</code></pre><pre class="mermaid" id="${id}">${str}</pre><pre class="hidden"><code>`;
+    }
     if (lang && hljs.getLanguage(lang)) {
       try {
         return hljs.highlight(str, { language: lang }).value;
@@ -662,10 +688,17 @@ class JadeApp {
     this.updateTimer = setTimeout(() => this.updatePreview(), 80);
   }
 
-  updatePreview() {
+  async updatePreview() {
     const content = this.editor.state.doc.toString();
+    mermaidCounter = 0;
     const html = md.render(content);
     this.previewContent.innerHTML = html;
+    const mermaidEls = this.previewContent.querySelectorAll('pre.mermaid');
+    if (mermaidEls.length > 0) {
+      try {
+        await mermaid.run({ nodes: mermaidEls });
+      } catch (_) {}
+    }
   }
 
   // View modes
