@@ -40,6 +40,9 @@
 - Outline / document map panel: toggle via Ctrl+Shift+O or status bar, shows headings H1-H6 with indentation, highlights active section based on cursor, click to jump
 - Image paste from clipboard: Ctrl+V pastes clipboard images, saves to `images/` subfolder with timestamp filename, inserts relative markdown link
 - PDF page size selection: Letter/A4/Legal via File menu sub-menu, persisted in localStorage
+- Minimap: canvas-based document overview in editor right margin, shows heading/code/text density, draggable viewport, click to navigate, toggle via View menu or status bar
+- Snippets: Tab-triggered text expansions (built-in: date, time, todo, tbl, code, link, img, meta, etc.), user-editable via Edit > Snippets dialog, custom snippets persisted in localStorage
+- Markdown table editor: visual grid dialog for creating/editing tables, Tab between cells, add/remove rows and columns, auto-formats aligned markdown table output; Edit > Table Editor or toolbar table button
 
 ### Architecture
 
@@ -75,7 +78,7 @@
 - [x] PDF export: user-selectable page size / margins (Letter/A4/Legal via File menu + localStorage) -- 2026-10-30
 - [x] Preview: mermaid diagram rendering -- 2026-10-30
 - [x] Preview: math/KaTeX rendering -- 2026-10-30
-- [ ] Minimap (CM6 extension or custom)
+- [x] Minimap (canvas-based document overview with viewport drag) -- 2026-10-30
 - [x] Word wrap toggle -- 2026-10-30
 - [x] Theme selector (jade green, dark, light) -- 2026-10-30
 - [x] Custom CSS for preview (View > Custom Preview CSS) -- 2026-10-30
@@ -83,16 +86,16 @@
 
 #### P2.5 -- next up
 - [ ] LaTeX editing: open .tex files with TeX syntax highlighting + latex.js rendered preview
-- [ ] Minimap (CM6 extension or custom canvas)
+- [x] Minimap (canvas-based document overview) -- 2026-10-30
 - [ ] Spell check (beyond browser default -- custom dictionary, ignore code blocks)
-- [ ] Snippets (user-defined text expansions)
+- [x] Snippets (Tab-triggered text expansions, user-editable) -- 2026-10-30
 
 #### P3 -- stretch
 - [ ] Plugin system
 - [ ] Git integration (diff view, commit from editor)
 - [ ] Multi-window support (separate windows, not just tabs)
 - [ ] Collaborative editing (CRDT)
-- [ ] Markdown table editor (visual grid, tab between cells)
+- [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
 
 ### Cross-platform notes
 

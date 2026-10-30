@@ -759,3 +759,199 @@ body.dragging-file::after {
   margin: 8px;
   border-radius: 8px;
 }
+
+/* Minimap */
+#minimap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 100%;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-primary);
+  z-index: 5;
+  cursor: pointer;
+}
+#minimap.minimap-hidden { display: none; }
+#minimap-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+#minimap-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--text-accent);
+  opacity: 0.15;
+  border-radius: 2px;
+  cursor: grab;
+  min-height: 10px;
+}
+#minimap-viewport:active { cursor: grabbing; }
+
+/* Snippet editor overlay */
+.snippet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.snippet-dialog {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 20px;
+  width: 500px;
+  max-height: 70vh;
+  overflow-y: auto;
+  color: var(--text-primary);
+}
+.snippet-dialog h3 {
+  margin: 0 0 4px 0;
+  color: var(--text-accent);
+}
+.snippet-hint {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.snippet-list {
+  margin-bottom: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.snippet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-secondary);
+}
+.snippet-trigger {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-accent);
+  min-width: 70px;
+}
+.snippet-value {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.snippet-del {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.snippet-del:hover { color: #e06060; }
+.snippet-add {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.snippet-add input, .snippet-add textarea {
+  flex: 1;
+  min-width: 100px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  resize: vertical;
+}
+.snippet-add button, .snippet-close {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 6px 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  margin-top: 8px;
+}
+.snippet-add button:hover, .snippet-close:hover {
+  background: var(--border-primary);
+}
+
+/* Table editor overlay */
+.table-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.table-dialog {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 400px;
+  max-width: 80vw;
+  max-height: 70vh;
+  overflow: auto;
+  color: var(--text-primary);
+}
+.table-dialog h3 {
+  margin: 0 0 12px 0;
+  color: var(--text-accent);
+}
+.table-grid {
+  margin-bottom: 12px;
+}
+.table-row {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.table-header-row .table-cell-input {
+  font-weight: bold;
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+.table-cell-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  padding: 4px 8px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-width: 80px;
+  flex: 1;
+}
+.table-cell-input:focus {
+  border-color: var(--text-accent);
+  outline: none;
+}
+.table-buttons, .table-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.table-buttons button, .table-actions button {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 4px 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+}
+.table-buttons button:hover, .table-actions button:hover {
+  background: var(--border-primary);
+}

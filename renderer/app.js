@@ -266,6 +266,9 @@ class JadeApp {
     this.outlineVisible = false;
     this.lintEnabled = false;
     this.pdfPageSize = this.loadPdfPageSize();
+    this.minimapVisible = false;
+    this.snippets = this.loadSnippets();
+    this.tableEditorActive = false;
     this.vimCompartment = new Compartment();
     this.wrapCompartment = new Compartment();
     this.lintCompartment = new Compartment();
@@ -289,6 +292,7 @@ class JadeApp {
     this.bindIPC();
     this.bindUI();
     this.initAutoSave();
+    this.initMinimap();
     this.loadCustomCSS();
 
     // Apply saved theme
@@ -305,6 +309,7 @@ class JadeApp {
         this.updateTabModified();
         this.updateWindowTitle();
         this.updateOutline();
+        this.updateMinimap();
       }
       if (update.selectionSet || update.docChanged) {
         this.updateCursorStatus();
@@ -355,6 +360,7 @@ class JadeApp {
         { key: 'Mod-Shift-k', run: () => { this.toolbarAction('code'); return true; } },
         { key: 'Mod-Shift-x', run: () => { this.toolbarAction('strikethrough'); return true; } },
         { key: 'Mod-Shift-o', run: () => { this.toggleOutline(); return true; } },
+        { key: 'Tab', run: () => this.tryExpandSnippet() },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...searchKeymap,
@@ -729,6 +735,7 @@ class JadeApp {
     document.getElementById('wrap-btn').addEventListener('click', () => this.toggleWordWrap());
     document.getElementById('theme-btn').addEventListener('click', () => this.cycleTheme());
     document.getElementById('lint-btn').addEventListener('click', () => this.toggleLint());
+    document.getElementById('minimap-btn').addEventListener('click', () => this.toggleMinimap());
     document.getElementById('outline-btn').addEventListener('click', () => this.toggleOutline());
     document.getElementById('outline-close').addEventListener('click', () => this.toggleOutline());
     document.getElementById('outline-content').addEventListener('click', (e) => {
@@ -813,6 +820,9 @@ class JadeApp {
     window.jade.onClearCustomCSS(() => this.clearCustomCSS());
     window.jade.onToggleOutline(() => this.toggleOutline());
     window.jade.onSetPdfPageSize((size) => this.setPdfPageSize(size));
+    window.jade.onToggleMinimap(() => this.toggleMinimap());
+    window.jade.onOpenSnippets(() => this.openSnippetEditor());
+    window.jade.onOpenTableEditor(() => this.openTableEditor());
   }
 
   bindUI() {
@@ -1510,6 +1520,380 @@ class JadeApp {
     try { localStorage.removeItem('jade-custom-css'); } catch (_) {}
     const el = document.getElementById('custom-preview-css');
     if (el) el.remove();
+  }
+
+  // Minimap
+  initMinimap() {
+    this.minimapCanvas = document.getElementById('minimap-canvas');
+    this.minimapViewport = document.getElementById('minimap-viewport');
+    const minimapEl = document.getElementById('minimap');
+    if (!minimapEl) return;
+    minimapEl.addEventListener('click', (e) => {
+      if (!this.minimapVisible) return;
+      const rect = this.minimapCanvas.getBoundingClientRect();
+      const ratio = (e.clientY - rect.top) / rect.height;
+      const scroller = this.editor.scrollDOM;
+      scroller.scrollTop = ratio * (scroller.scrollHeight - scroller.clientHeight);
+    });
+    let dragging = false;
+    this.minimapViewport.addEventListener('mousedown', (e) => {
+      dragging = true;
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const rect = this.minimapCanvas.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      const scroller = this.editor.scrollDOM;
+      scroller.scrollTop = ratio * (scroller.scrollHeight - scroller.clientHeight);
+    });
+    window.addEventListener('mouseup', () => { dragging = false; });
+    requestAnimationFrame(() => {
+      const scroller = this.editor.scrollDOM;
+      if (scroller) scroller.addEventListener('scroll', () => this.updateMinimapViewport(), { passive: true });
+    });
+  }
+
+  toggleMinimap() {
+    this.minimapVisible = !this.minimapVisible;
+    const el = document.getElementById('minimap');
+    if (el) el.classList.toggle('minimap-hidden', !this.minimapVisible);
+    const btn = document.getElementById('minimap-btn');
+    if (btn) btn.classList.toggle('active', this.minimapVisible);
+    if (this.minimapVisible) this.updateMinimap();
+  }
+
+  updateMinimap() {
+    if (!this.minimapVisible || !this.minimapCanvas) return;
+    const canvas = this.minimapCanvas;
+    const ctx = canvas.getContext('2d');
+    const doc = this.editor.state.doc;
+    const lineCount = doc.lines;
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = canvas.clientWidth;
+    const cssHeight = canvas.clientHeight;
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    const lineHeight = Math.max(1, cssHeight / Math.max(lineCount, 1));
+    const style = getComputedStyle(document.documentElement);
+    const textColor = style.getPropertyValue('--text-muted').trim() || '#556655';
+    const headingColor = style.getPropertyValue('--syntax-heading').trim() || '#7cba8a';
+    const codeColor = style.getPropertyValue('--syntax-string').trim() || '#5aa87a';
+    let inCode = false;
+    for (let i = 1; i <= lineCount; i++) {
+      const text = doc.line(i).text;
+      const y = (i - 1) * lineHeight;
+      if (text.startsWith('```')) { inCode = !inCode; continue; }
+      const len = Math.min(text.length, cssWidth / 1.2);
+      if (len === 0) continue;
+      if (/^#{1,6}\s/.test(text)) {
+        ctx.fillStyle = headingColor;
+        ctx.globalAlpha = 0.9;
+        ctx.fillRect(2, y, Math.min(len * 1.2, cssWidth - 4), Math.max(lineHeight, 2));
+      } else if (inCode) {
+        ctx.fillStyle = codeColor;
+        ctx.globalAlpha = 0.4;
+        ctx.fillRect(6, y, Math.min(len * 0.8, cssWidth - 10), Math.max(lineHeight, 1));
+      } else {
+        ctx.fillStyle = textColor;
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(2, y, Math.min(len * 0.8, cssWidth - 4), Math.max(lineHeight, 1));
+      }
+    }
+    ctx.globalAlpha = 1;
+    this.updateMinimapViewport();
+  }
+
+  updateMinimapViewport() {
+    if (!this.minimapVisible || !this.minimapViewport) return;
+    const scroller = this.editor.scrollDOM;
+    const totalH = scroller.scrollHeight;
+    const visibleH = scroller.clientHeight;
+    const scrollTop = scroller.scrollTop;
+    const canvasH = this.minimapCanvas.clientHeight;
+    if (totalH <= 0) return;
+    const vpTop = (scrollTop / totalH) * canvasH;
+    const vpHeight = Math.max(10, (visibleH / totalH) * canvasH);
+    this.minimapViewport.style.top = vpTop + 'px';
+    this.minimapViewport.style.height = vpHeight + 'px';
+  }
+
+  // Snippets
+  loadSnippets() {
+    try {
+      const stored = localStorage.getItem('jade-snippets');
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return {
+      'date': () => new Date().toISOString().slice(0, 10),
+      'time': () => new Date().toTimeString().slice(0, 5),
+      'todo': '- [ ] ',
+      'tbl': '| Column 1 | Column 2 | Column 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |',
+      'code': '```\n\n```',
+      'link': '[text](url)',
+      'img': '![alt](path)',
+      'hr': '\n---\n',
+      'h1': '# ',
+      'h2': '## ',
+      'h3': '### ',
+      'meta': '---\ntitle: \nauthor: \ndate: ' + new Date().toISOString().slice(0, 10) + '\n---\n',
+    };
+  }
+
+  saveSnippets() {
+    const plain = {};
+    for (const [k, v] of Object.entries(this.snippets)) {
+      if (typeof v === 'string') plain[k] = v;
+    }
+    try { localStorage.setItem('jade-snippets', JSON.stringify(plain)); } catch (_) {}
+  }
+
+  tryExpandSnippet() {
+    const state = this.editor.state;
+    const pos = state.selection.main.head;
+    const line = state.doc.lineAt(pos);
+    const textBefore = line.text.slice(0, pos - line.from);
+    const match = textBefore.match(/(\S+)$/);
+    if (!match) return false;
+    const trigger = match[1];
+    const snippet = this.snippets[trigger];
+    if (!snippet) return false;
+    const expanded = typeof snippet === 'function' ? snippet() : snippet;
+    const from = pos - trigger.length;
+    this.editor.dispatch({ changes: { from, to: pos, insert: expanded } });
+    return true;
+  }
+
+  openSnippetEditor() {
+    const overlay = document.createElement('div');
+    overlay.className = 'snippet-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'snippet-dialog';
+    dialog.innerHTML = '<h3>Snippets</h3><p class="snippet-hint">Type a trigger word and press Tab to expand. Add, edit, or remove snippets below.</p>';
+    const list = document.createElement('div');
+    list.className = 'snippet-list';
+    const renderList = () => {
+      list.innerHTML = '';
+      for (const [trigger, value] of Object.entries(this.snippets)) {
+        if (typeof value === 'function') continue;
+        const row = document.createElement('div');
+        row.className = 'snippet-row';
+        const triggerSpan = document.createElement('span');
+        triggerSpan.className = 'snippet-trigger';
+        triggerSpan.textContent = trigger;
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'snippet-value';
+        valueSpan.textContent = value.length > 60 ? value.slice(0, 57) + '...' : value;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'snippet-del';
+        delBtn.textContent = 'x';
+        delBtn.addEventListener('click', () => {
+          delete this.snippets[trigger];
+          this.saveSnippets();
+          renderList();
+        });
+        row.append(triggerSpan, valueSpan, delBtn);
+        list.appendChild(row);
+      }
+    };
+    renderList();
+    dialog.appendChild(list);
+    const addArea = document.createElement('div');
+    addArea.className = 'snippet-add';
+    addArea.innerHTML = '<input id="snip-trigger" placeholder="trigger" maxlength="30"><textarea id="snip-value" placeholder="expansion text" rows="3"></textarea><button id="snip-add-btn">Add</button>';
+    dialog.appendChild(addArea);
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'snippet-close';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    dialog.appendChild(closeBtn);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    dialog.querySelector('#snip-add-btn').addEventListener('click', () => {
+      const t = dialog.querySelector('#snip-trigger').value.trim();
+      const v = dialog.querySelector('#snip-value').value;
+      if (t && v) {
+        this.snippets[t] = v;
+        this.saveSnippets();
+        dialog.querySelector('#snip-trigger').value = '';
+        dialog.querySelector('#snip-value').value = '';
+        renderList();
+      }
+    });
+  }
+
+  // Markdown table editor
+  openTableEditor() {
+    const state = this.editor.state;
+    const pos = state.selection.main.head;
+    const doc = state.doc;
+    const lineNum = doc.lineAt(pos).number;
+    const tableLines = this.findTableAt(doc, lineNum);
+    if (!tableLines) {
+      this.insertNewTable();
+      return;
+    }
+    const parsed = this.parseTable(tableLines.lines);
+    this.showTableDialog(parsed, tableLines.from, tableLines.to);
+  }
+
+  findTableAt(doc, lineNum) {
+    let start = lineNum;
+    let end = lineNum;
+    const isTableLine = (n) => {
+      if (n < 1 || n > doc.lines) return false;
+      return /^\|/.test(doc.line(n).text.trim());
+    };
+    if (!isTableLine(lineNum)) {
+      if (isTableLine(lineNum + 1)) start = end = lineNum + 1;
+      else if (isTableLine(lineNum - 1)) start = end = lineNum - 1;
+      else return null;
+    }
+    while (isTableLine(start - 1)) start--;
+    while (isTableLine(end + 1)) end++;
+    const lines = [];
+    for (let i = start; i <= end; i++) lines.push(doc.line(i).text);
+    return { lines, from: doc.line(start).from, to: doc.line(end).to };
+  }
+
+  parseTable(lines) {
+    const rows = [];
+    let separatorIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const cells = lines[i].split('|').slice(1);
+      if (cells.length > 0 && cells[cells.length - 1].trim() === '') cells.pop();
+      const trimmed = cells.map(c => c.trim());
+      if (trimmed.every(c => /^[-:]+$/.test(c)) && separatorIdx === -1) {
+        separatorIdx = i;
+      } else {
+        rows.push(trimmed);
+      }
+    }
+    return { rows, hasHeader: separatorIdx === 1 };
+  }
+
+  showTableDialog(parsed, from, to) {
+    const overlay = document.createElement('div');
+    overlay.className = 'table-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'table-dialog';
+    dialog.innerHTML = '<h3>Table Editor</h3>';
+    const grid = document.createElement('div');
+    grid.className = 'table-grid';
+    const rows = parsed.rows;
+    const cols = rows.length > 0 ? Math.max(...rows.map(r => r.length)) : 3;
+    const inputs = [];
+    for (let r = 0; r < rows.length; r++) {
+      const rowInputs = [];
+      const rowEl = document.createElement('div');
+      rowEl.className = 'table-row' + (r === 0 && parsed.hasHeader ? ' table-header-row' : '');
+      for (let c = 0; c < cols; c++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'table-cell-input';
+        input.value = (rows[r] && rows[r][c]) || '';
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            const nextC = e.shiftKey ? c - 1 : c + 1;
+            const nextR = nextC >= cols ? r + 1 : (nextC < 0 ? r - 1 : r);
+            const wrapC = nextC >= cols ? 0 : (nextC < 0 ? cols - 1 : nextC);
+            if (nextR >= 0 && nextR < inputs.length && inputs[nextR][wrapC]) inputs[nextR][wrapC].focus();
+          }
+        });
+        rowEl.appendChild(input);
+        rowInputs.push(input);
+      }
+      grid.appendChild(rowEl);
+      inputs.push(rowInputs);
+    }
+    dialog.appendChild(grid);
+    const btnRow = document.createElement('div');
+    btnRow.className = 'table-buttons';
+    btnRow.innerHTML = '<button id="tbl-add-row">+ Row</button><button id="tbl-add-col">+ Column</button><button id="tbl-del-row">- Row</button><button id="tbl-del-col">- Column</button>';
+    dialog.appendChild(btnRow);
+    const actionRow = document.createElement('div');
+    actionRow.className = 'table-actions';
+    actionRow.innerHTML = '<button id="tbl-apply">Apply</button><button id="tbl-cancel">Cancel</button>';
+    dialog.appendChild(actionRow);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    dialog.querySelector('#tbl-cancel').addEventListener('click', () => overlay.remove());
+    dialog.querySelector('#tbl-add-row').addEventListener('click', () => {
+      const newRow = [];
+      const rowEl = document.createElement('div');
+      rowEl.className = 'table-row';
+      const currentCols = inputs[0] ? inputs[0].length : cols;
+      for (let c = 0; c < currentCols; c++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'table-cell-input';
+        rowEl.appendChild(input);
+        newRow.push(input);
+      }
+      grid.appendChild(rowEl);
+      inputs.push(newRow);
+    });
+    dialog.querySelector('#tbl-add-col').addEventListener('click', () => {
+      for (let r = 0; r < inputs.length; r++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'table-cell-input';
+        grid.children[r].appendChild(input);
+        inputs[r].push(input);
+      }
+    });
+    dialog.querySelector('#tbl-del-row').addEventListener('click', () => {
+      if (inputs.length <= 1) return;
+      grid.removeChild(grid.lastChild);
+      inputs.pop();
+    });
+    dialog.querySelector('#tbl-del-col').addEventListener('click', () => {
+      if (!inputs[0] || inputs[0].length <= 1) return;
+      for (let r = 0; r < inputs.length; r++) {
+        grid.children[r].removeChild(grid.children[r].lastChild);
+        inputs[r].pop();
+      }
+    });
+    dialog.querySelector('#tbl-apply').addEventListener('click', () => {
+      const tableRows = inputs.map(row => row.map(input => input.value));
+      const md = this.generateTableMarkdown(tableRows, parsed.hasHeader);
+      this.editor.dispatch({ changes: { from, to, insert: md } });
+      overlay.remove();
+      this.editor.focus();
+    });
+    if (inputs[0] && inputs[0][0]) inputs[0][0].focus();
+  }
+
+  insertNewTable() {
+    const rows = [['Column 1', 'Column 2', 'Column 3'], ['', '', ''], ['', '', '']];
+    this.showTableDialog({ rows, hasHeader: true }, this.editor.state.selection.main.head, this.editor.state.selection.main.head);
+  }
+
+  generateTableMarkdown(rows, hasHeader) {
+    if (rows.length === 0) return '';
+    const colCount = Math.max(...rows.map(r => r.length));
+    const colWidths = Array(colCount).fill(3);
+    for (const row of rows) {
+      for (let c = 0; c < colCount; c++) {
+        colWidths[c] = Math.max(colWidths[c], (row[c] || '').length);
+      }
+    }
+    const pad = (s, w) => (s || '') + ' '.repeat(Math.max(0, w - (s || '').length));
+    const lines = [];
+    for (let r = 0; r < rows.length; r++) {
+      const cells = [];
+      for (let c = 0; c < colCount; c++) cells.push(pad(rows[r][c] || '', colWidths[c]));
+      lines.push('| ' + cells.join(' | ') + ' |');
+      if (r === 0 && hasHeader) {
+        lines.push('| ' + colWidths.map(w => '-'.repeat(w)).join(' | ') + ' |');
+      }
+    }
+    return lines.join('\n');
   }
 
   escapeHtml(str) {

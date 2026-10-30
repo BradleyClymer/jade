@@ -39,7 +39,12 @@
       <div id="outline-header"><span>Outline</span><button id="outline-close">&times;</button></div>
       <div id="outline-content"></div>
     </div>
-    <div id="editor-pane"></div>
+    <div id="editor-pane">
+      <div id="minimap" class="minimap-hidden">
+        <canvas id="minimap-canvas"></canvas>
+        <div id="minimap-viewport"></div>
+      </div>
+    </div>
     <div id="divider"></div>
     <div id="preview-pane">
       <div id="preview-content"></div>
@@ -50,6 +55,7 @@
     <span id="status-cursor">Ln 1, Col 1</span>
     <span id="status-words">0 words</span>
     <span id="status-encoding">UTF-8</span>
+    <button id="minimap-btn" class="status-btn" title="Minimap">Map</button>
     <button id="outline-btn" class="status-btn" title="Document outline (Ctrl+Shift+O)">Outline</button>
     <button id="lint-btn" class="status-btn" title="Markdown lint (off)">Lint</button>
     <button id="wrap-btn" class="status-btn active" title="Word wrap (on)">Wrap</button>

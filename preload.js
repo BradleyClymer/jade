@@ -33,4 +33,7 @@ contextBridge.exposeInMainWorld('jade', {
   onClearCustomCSS: (cb) => ipcRenderer.on('clear-custom-css', () => cb()),
   onToggleOutline: (cb) => ipcRenderer.on('toggle-outline', () => cb()),
   onSetPdfPageSize: (cb) => ipcRenderer.on('set-pdf-page-size', (_, size) => cb(size)),
+  onToggleMinimap: (cb) => ipcRenderer.on('toggle-minimap', () => cb()),
+  onOpenSnippets: (cb) => ipcRenderer.on('open-snippets', () => cb()),
+  onOpenTableEditor: (cb) => ipcRenderer.on('open-table-editor', () => cb()),
 });

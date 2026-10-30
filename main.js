@@ -212,6 +212,21 @@ function buildMenu() {
             if (win) win.webContents.send('replace');
           },
         },
+        { type: 'separator' },
+        {
+          label: 'Snippets...',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('open-snippets');
+          },
+        },
+        {
+          label: 'Table Editor...',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('open-table-editor');
+          },
+        },
       ],
     },
     {
@@ -297,6 +312,13 @@ function buildMenu() {
           },
         },
         { type: 'separator' },
+        {
+          label: 'Toggle Minimap',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-minimap');
+          },
+        },
         {
           label: 'Toggle Outline',
           accelerator: 'CmdOrCtrl+Shift+O',
