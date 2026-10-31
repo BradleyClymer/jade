@@ -275,6 +275,7 @@ class JadeApp {
     this.snippets = this.loadSnippets();
     this.tableEditorActive = false;
     this.gitPanelVisible = false;
+    this.plugins = [];
     this.spellCheckEnabled = false;
     this.spellDict = null;
     this.customDict = this.loadCustomDict();
@@ -304,6 +305,7 @@ class JadeApp {
     this.initAutoSave();
     this.initMinimap();
     this.loadCustomCSS();
+    this.loadPlugins();
 
     // Apply saved theme
     this.setTheme(this.currentTheme);
@@ -831,6 +833,9 @@ class JadeApp {
     window.jade.onToggleMinimap(() => this.toggleMinimap());
     window.jade.onOpenSnippets(() => this.openSnippetEditor());
     window.jade.onOpenTableEditor(() => this.openTableEditor());
+    window.jade.onReloadPlugins(() => this.loadPlugins());
+    window.jade.onOpenPluginDir(() => window.jade.openPluginDir());
+    window.jade.onMoveTabToWindow(() => this.moveTabToNewWindow());
     window.jade.onToggleGitPanel(() => this.toggleGitPanel());
     window.jade.onShowGitDiff(() => this.showCurrentFileDiff());
   }
@@ -1095,7 +1100,12 @@ class JadeApp {
       return;
     }
     mermaidCounter = 0;
-    const html = md.render(content);
+    let html = md.render(content);
+    if (this._pluginPreviewTransforms) {
+      for (const transform of this._pluginPreviewTransforms) {
+        try { html = transform(html) || html; } catch (_) {}
+      }
+    }
     this.previewContent.innerHTML = html;
     const mermaidEls = this.previewContent.querySelectorAll('pre.mermaid');
     if (mermaidEls.length > 0) {
@@ -2148,6 +2158,70 @@ class JadeApp {
       }
     }
     return lines.join('\n');
+  }
+
+  // Plugin system
+  async loadPlugins() {
+    this.plugins = [];
+    this._pluginCommands = {};
+    this._pluginPreviewTransforms = [];
+    const result = await window.jade.loadPlugins();
+    if (!result.success || !result.plugins.length) return;
+    const api = {
+      registerCommand: (name, label, fn) => {
+        this._pluginCommands[name] = { label, fn };
+      },
+      registerPreviewTransform: (fn) => {
+        this._pluginPreviewTransforms.push(fn);
+      },
+      insertText: (text) => this.insertAtCursor(text),
+      getContent: () => this.editor.state.doc.toString(),
+      setContent: (text) => {
+        this.editor.dispatch({ changes: { from: 0, to: this.editor.state.doc.length, insert: text } });
+      },
+      getSelection: () => {
+        const sel = this.editor.state.selection.main;
+        return this.editor.state.sliceDoc(sel.from, sel.to);
+      },
+      getFilePath: () => {
+        const tab = this.tabs[this.activeTabIndex];
+        return tab ? tab.filePath : null;
+      },
+      showNotification: (msg) => {
+        const el = document.createElement('div');
+        el.className = 'plugin-notification';
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3000);
+      },
+    };
+    for (const plugin of result.plugins) {
+      try {
+        const fn = new Function('jade', plugin.code);
+        fn(api);
+        this.plugins.push(plugin.name);
+      } catch (err) {
+        console.warn(`Plugin "${plugin.name}" failed to load:`, err);
+      }
+    }
+  }
+
+  runPluginCommand(name) {
+    const cmd = this._pluginCommands[name];
+    if (cmd) cmd.fn();
+  }
+
+  // Multi-window
+  async moveTabToNewWindow() {
+    const tab = this.tabs[this.activeTabIndex];
+    if (!tab) return;
+    if (this.tabs.length <= 1) {
+      await window.jade.openInNewWindow(tab.filePath);
+      return;
+    }
+    const filePath = tab.filePath;
+    await this.closeTab(this.activeTabIndex);
+    await window.jade.openInNewWindow(filePath);
   }
 
   // Git integration

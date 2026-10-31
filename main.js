@@ -175,6 +175,13 @@ function buildMenu() {
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => createWindow(null),
         },
+        {
+          label: 'Move Tab to New Window',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('move-tab-to-window');
+          },
+        },
         { type: 'separator' },
         {
           label: 'Close Tab',
@@ -349,6 +356,25 @@ function buildMenu() {
       ],
     },
     {
+      label: 'Plugins',
+      submenu: [
+        {
+          label: 'Reload Plugins',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('reload-plugins');
+          },
+        },
+        {
+          label: 'Open Plugins Folder',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('open-plugin-dir');
+          },
+        },
+      ],
+    },
+    {
       label: 'Git',
       submenu: [
         {
@@ -500,6 +526,39 @@ ipcMain.handle('open-css-file', async (event) => {
   });
   if (canceled) return { canceled: true };
   return { canceled: false, path: filePaths[0] };
+});
+
+ipcMain.handle('load-plugins', async () => {
+  const pluginDir = path.join(app.getPath('home'), '.jade', 'plugins');
+  try {
+    if (!fs.existsSync(pluginDir)) {
+      fs.mkdirSync(pluginDir, { recursive: true });
+      return { success: true, plugins: [] };
+    }
+    const files = fs.readdirSync(pluginDir).filter(f => f.endsWith('.js'));
+    const plugins = [];
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(path.join(pluginDir, file), 'utf-8');
+        plugins.push({ name: file.replace('.js', ''), code: content });
+      } catch (_) {}
+    }
+    return { success: true, plugins, dir: pluginDir };
+  } catch (err) {
+    return { success: false, error: err.message, dir: pluginDir };
+  }
+});
+
+ipcMain.handle('open-plugin-dir', async () => {
+  const pluginDir = path.join(app.getPath('home'), '.jade', 'plugins');
+  if (!fs.existsSync(pluginDir)) fs.mkdirSync(pluginDir, { recursive: true });
+  shell.openPath(pluginDir);
+  return { success: true, dir: pluginDir };
+});
+
+ipcMain.handle('open-in-new-window', async (event, filePath) => {
+  createWindow(filePath || null);
+  return { success: true };
 });
 
 // Git integration

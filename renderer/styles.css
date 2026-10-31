@@ -760,6 +760,27 @@ body.dragging-file::after {
   border-radius: 8px;
 }
 
+/* Plugin notification */
+.plugin-notification {
+  position: fixed;
+  bottom: 40px;
+  right: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--text-accent);
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: var(--text-primary);
+  font-size: 13px;
+  z-index: 10001;
+  animation: fadeInOut 3s ease;
+}
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(10px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Git panel */
 #git-panel {
   position: absolute;

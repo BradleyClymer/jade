@@ -46,6 +46,8 @@
 - LaTeX editing with preview: open .tex files with full TeX syntax highlighting (codemirror-lang-latex), live preview renders sections/math/lists/code/formatting via KaTeX, inline math/textbf/textit/emph/href/cite/ref rendering, .tex file association
 - Spell check: toggleable spell checker in status bar, 29K-word English dictionary, highlights unknown words as lint diagnostics, "Add to dictionary" action, custom dictionary persisted in localStorage, skips code blocks and headings
 - Git integration: Git panel (Ctrl+G) shows branch, modified/staged/untracked files with status indicators, stage/unstage buttons per file, diff viewer with syntax-colored add/delete/hunk lines, commit with message input; Git menu with panel toggle and diff current file
+- Plugin system: JS plugins in `~/.jade/plugins/` auto-loaded at startup. Plugin API: registerCommand, registerPreviewTransform, insertText, getContent, setContent, getSelection, getFilePath, showNotification. Plugins menu to reload and open folder.
+- Multi-window: File > Move Tab to New Window opens the current tab's file in a separate Jade window
 
 ### Architecture
 
@@ -94,9 +96,9 @@
 - [x] Snippets (Tab-triggered text expansions, user-editable) -- 2026-10-30
 
 #### P3 -- stretch
-- [ ] Plugin system
+- [x] Plugin system (JS plugins in ~/.jade/plugins/, API for commands/transforms) -- 2026-10-30
 - [x] Git integration (diff view, stage/unstage, commit from editor) -- 2026-10-30
-- [ ] Multi-window support (separate windows, not just tabs)
+- [x] Multi-window support (move tab to new window) -- 2026-10-30
 - [ ] Collaborative editing (CRDT)
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
 
