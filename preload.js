@@ -36,4 +36,12 @@ contextBridge.exposeInMainWorld('jade', {
   onToggleMinimap: (cb) => ipcRenderer.on('toggle-minimap', () => cb()),
   onOpenSnippets: (cb) => ipcRenderer.on('open-snippets', () => cb()),
   onOpenTableEditor: (cb) => ipcRenderer.on('open-table-editor', () => cb()),
+  onToggleGitPanel: (cb) => ipcRenderer.on('toggle-git-panel', () => cb()),
+  onShowGitDiff: (cb) => ipcRenderer.on('show-git-diff', () => cb()),
+  gitStatus: (cwd) => ipcRenderer.invoke('git-status', cwd),
+  gitDiff: (cwd, filePath) => ipcRenderer.invoke('git-diff', cwd, filePath),
+  gitStage: (cwd, filePath) => ipcRenderer.invoke('git-stage', cwd, filePath),
+  gitUnstage: (cwd, filePath) => ipcRenderer.invoke('git-unstage', cwd, filePath),
+  gitCommit: (cwd, message) => ipcRenderer.invoke('git-commit', cwd, message),
+  gitLog: (cwd, count) => ipcRenderer.invoke('git-log', cwd, count),
 });

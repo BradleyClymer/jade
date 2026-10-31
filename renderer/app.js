@@ -274,6 +274,7 @@ class JadeApp {
     this.minimapVisible = false;
     this.snippets = this.loadSnippets();
     this.tableEditorActive = false;
+    this.gitPanelVisible = false;
     this.spellCheckEnabled = false;
     this.spellDict = null;
     this.customDict = this.loadCustomDict();
@@ -742,6 +743,7 @@ class JadeApp {
     document.getElementById('lint-btn').addEventListener('click', () => this.toggleLint());
     document.getElementById('spell-btn').addEventListener('click', () => this.toggleSpellCheck());
     document.getElementById('minimap-btn').addEventListener('click', () => this.toggleMinimap());
+    document.getElementById('git-close').addEventListener('click', () => this.toggleGitPanel());
     document.getElementById('outline-btn').addEventListener('click', () => this.toggleOutline());
     document.getElementById('outline-close').addEventListener('click', () => this.toggleOutline());
     document.getElementById('outline-content').addEventListener('click', (e) => {
@@ -829,6 +831,8 @@ class JadeApp {
     window.jade.onToggleMinimap(() => this.toggleMinimap());
     window.jade.onOpenSnippets(() => this.openSnippetEditor());
     window.jade.onOpenTableEditor(() => this.openTableEditor());
+    window.jade.onToggleGitPanel(() => this.toggleGitPanel());
+    window.jade.onShowGitDiff(() => this.showCurrentFileDiff());
   }
 
   bindUI() {
@@ -2144,6 +2148,124 @@ class JadeApp {
       }
     }
     return lines.join('\n');
+  }
+
+  // Git integration
+  getWorkingDir() {
+    const tab = this.tabs[this.activeTabIndex];
+    if (tab && tab.filePath) return tab.filePath.replace(/[\\/][^\\/]+$/, '');
+    return null;
+  }
+
+  toggleGitPanel() {
+    this.gitPanelVisible = !this.gitPanelVisible;
+    const panel = document.getElementById('git-panel');
+    if (panel) panel.classList.toggle('git-hidden', !this.gitPanelVisible);
+    if (this.gitPanelVisible) this.refreshGitStatus();
+  }
+
+  async refreshGitStatus() {
+    const cwd = this.getWorkingDir();
+    const content = document.getElementById('git-content');
+    if (!cwd || !content) return;
+    const result = await window.jade.gitStatus(cwd);
+    if (!result.success) {
+      content.innerHTML = '<p class="git-info">Not a git repository</p>';
+      return;
+    }
+    let html = '<div class="git-branch">Branch: <strong>' + this.escapeHtml(result.branch || 'detached') + '</strong></div>';
+    if (result.files.length === 0) {
+      html += '<p class="git-info">Working tree clean</p>';
+    } else {
+      html += '<div class="git-files">';
+      for (const f of result.files) {
+        const staged = f.status[0] !== ' ' && f.status[0] !== '?';
+        const statusClass = staged ? 'git-staged' : (f.status[1] === '?' ? 'git-untracked' : 'git-modified');
+        html += `<div class="git-file ${statusClass}" data-path="${this.escapeHtml(f.path)}" data-staged="${staged}">`;
+        html += `<span class="git-file-status">${this.escapeHtml(f.status)}</span>`;
+        html += `<span class="git-file-path">${this.escapeHtml(f.path)}</span>`;
+        html += `<button class="git-file-action" title="${staged ? 'Unstage' : 'Stage'}">${staged ? '-' : '+'}</button>`;
+        html += `<button class="git-file-diff" title="Show diff">D</button>`;
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    html += '<div class="git-commit-area"><input id="git-commit-msg" placeholder="Commit message..." maxlength="200"><button id="git-commit-btn">Commit</button></div>';
+    content.innerHTML = html;
+    content.querySelectorAll('.git-file-action').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const row = e.target.closest('.git-file');
+        const filePath = row.dataset.path;
+        const staged = row.dataset.staged === 'true';
+        if (staged) {
+          await window.jade.gitUnstage(cwd, filePath);
+        } else {
+          await window.jade.gitStage(cwd, filePath);
+        }
+        this.refreshGitStatus();
+      });
+    });
+    content.querySelectorAll('.git-file-diff').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const row = e.target.closest('.git-file');
+        const filePath = row.dataset.path;
+        this.showDiff(cwd, filePath);
+      });
+    });
+    const commitBtn = document.getElementById('git-commit-btn');
+    if (commitBtn) {
+      commitBtn.addEventListener('click', async () => {
+        const msg = document.getElementById('git-commit-msg').value.trim();
+        if (!msg) return;
+        const result = await window.jade.gitCommit(cwd, msg);
+        if (result.success) {
+          document.getElementById('git-commit-msg').value = '';
+          this.refreshGitStatus();
+        }
+      });
+    }
+  }
+
+  async showCurrentFileDiff() {
+    const tab = this.tabs[this.activeTabIndex];
+    if (!tab || !tab.filePath) return;
+    const cwd = this.getWorkingDir();
+    const fileName = tab.filePath.replace(/\\/g, '/').split('/').pop();
+    this.showDiff(cwd, fileName);
+  }
+
+  async showDiff(cwd, filePath) {
+    const result = await window.jade.gitDiff(cwd, filePath);
+    if (!result.success || !result.output) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'diff-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'diff-dialog';
+    dialog.innerHTML = '<h3>Diff: ' + this.escapeHtml(filePath) + '</h3>';
+    const pre = document.createElement('pre');
+    pre.className = 'diff-content';
+    const lines = result.output.split('\n');
+    for (const line of lines) {
+      const span = document.createElement('span');
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        span.className = 'diff-add';
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        span.className = 'diff-del';
+      } else if (line.startsWith('@@')) {
+        span.className = 'diff-hunk';
+      }
+      span.textContent = line + '\n';
+      pre.appendChild(span);
+    }
+    dialog.appendChild(pre);
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'diff-close';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    dialog.appendChild(closeBtn);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   }
 
   escapeHtml(str) {

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process');
 
 let windows = [];
 let recentFiles = [];
@@ -348,6 +349,26 @@ function buildMenu() {
       ],
     },
     {
+      label: 'Git',
+      submenu: [
+        {
+          label: 'Git Panel',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-git-panel');
+          },
+        },
+        {
+          label: 'Diff Current File',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('show-git-diff');
+          },
+        },
+      ],
+    },
+    {
       label: 'Help',
       submenu: [
         {
@@ -479,6 +500,56 @@ ipcMain.handle('open-css-file', async (event) => {
   });
   if (canceled) return { canceled: true };
   return { canceled: false, path: filePaths[0] };
+});
+
+// Git integration
+function gitExec(cwd, cmd) {
+  try {
+    return { success: true, output: execSync(cmd, { cwd, encoding: 'utf8', timeout: 10000 }).trim() };
+  } catch (err) {
+    return { success: false, error: err.stderr || err.message };
+  }
+}
+
+ipcMain.handle('git-status', async (event, cwd) => {
+  const isRepo = gitExec(cwd, 'git rev-parse --is-inside-work-tree');
+  if (!isRepo.success) return { success: false, error: 'Not a git repository' };
+  const branch = gitExec(cwd, 'git branch --show-current');
+  const status = gitExec(cwd, 'git status --porcelain');
+  return {
+    success: true,
+    branch: branch.success ? branch.output : '',
+    files: status.success ? status.output.split('\n').filter(Boolean).map(line => ({
+      status: line.slice(0, 2),
+      path: line.slice(3),
+    })) : [],
+  };
+});
+
+ipcMain.handle('git-diff', async (event, cwd, filePath) => {
+  const diff = gitExec(cwd, `git diff -- "${filePath}"`);
+  if (!diff.success || !diff.output) {
+    const staged = gitExec(cwd, `git diff --cached -- "${filePath}"`);
+    return staged;
+  }
+  return diff;
+});
+
+ipcMain.handle('git-stage', async (event, cwd, filePath) => {
+  return gitExec(cwd, `git add -- "${filePath}"`);
+});
+
+ipcMain.handle('git-unstage', async (event, cwd, filePath) => {
+  return gitExec(cwd, `git restore --staged -- "${filePath}"`);
+});
+
+ipcMain.handle('git-commit', async (event, cwd, message) => {
+  return gitExec(cwd, `git commit -m "${message.replace(/"/g, '\\"')}"`);
+});
+
+ipcMain.handle('git-log', async (event, cwd, count) => {
+  const log = gitExec(cwd, `git log --oneline -${count || 10}`);
+  return log;
 });
 
 ipcMain.handle('capture-page', async (event) => {

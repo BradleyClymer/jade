@@ -45,6 +45,7 @@
 - Markdown table editor: visual grid dialog for creating/editing tables, Tab between cells, add/remove rows and columns, auto-formats aligned markdown table output; Edit > Table Editor or toolbar table button
 - LaTeX editing with preview: open .tex files with full TeX syntax highlighting (codemirror-lang-latex), live preview renders sections/math/lists/code/formatting via KaTeX, inline math/textbf/textit/emph/href/cite/ref rendering, .tex file association
 - Spell check: toggleable spell checker in status bar, 29K-word English dictionary, highlights unknown words as lint diagnostics, "Add to dictionary" action, custom dictionary persisted in localStorage, skips code blocks and headings
+- Git integration: Git panel (Ctrl+G) shows branch, modified/staged/untracked files with status indicators, stage/unstage buttons per file, diff viewer with syntax-colored add/delete/hunk lines, commit with message input; Git menu with panel toggle and diff current file
 
 ### Architecture
 
@@ -94,7 +95,7 @@
 
 #### P3 -- stretch
 - [ ] Plugin system
-- [ ] Git integration (diff view, commit from editor)
+- [x] Git integration (diff view, stage/unstage, commit from editor) -- 2026-10-30
 - [ ] Multi-window support (separate windows, not just tabs)
 - [ ] Collaborative editing (CRDT)
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
