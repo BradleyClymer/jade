@@ -24,6 +24,7 @@
       "dist/bundle.js.map",
       "dist/katex.min.css",
       "dist/fonts/**/*",
+      "dist/words.txt",
       "assets/icon.svg",
       "assets/icon.png"
     ],
@@ -42,6 +43,13 @@
         "description": "Markdown Document",
         "role": "Editor",
         "mimeType": "text/markdown"
+      },
+      {
+        "ext": "tex",
+        "name": "LaTeX File",
+        "description": "LaTeX Document",
+        "role": "Editor",
+        "mimeType": "application/x-tex"
       }
     ],
     "win": {
@@ -121,6 +129,7 @@
     "@codemirror/view": "^6.36.5",
     "@lezer/highlight": "^1.2.1",
     "@replit/codemirror-vim": "^6.4.0",
+    "codemirror-lang-latex": "^0.6.1",
     "highlight.js": "^11.11.1",
     "katex": "^0.16.21",
     "markdown-it": "^14.1.0",

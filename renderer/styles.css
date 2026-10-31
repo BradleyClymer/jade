@@ -760,6 +760,13 @@ body.dragging-file::after {
   border-radius: 8px;
 }
 
+/* LaTeX preview */
+.latex-author { text-align: center; font-size: 1.1em; color: var(--text-secondary); margin: 4px 0; }
+.latex-date { text-align: center; font-size: 0.95em; color: var(--text-muted); margin: 4px 0 16px; }
+.latex-caption { font-size: 0.9em; color: var(--text-secondary); font-style: italic; margin: 4px 0 12px; }
+.latex-ref { color: var(--syntax-url); font-family: var(--font-mono); font-size: 0.85em; }
+.latex-cite { color: var(--syntax-keyword); font-family: var(--font-mono); font-size: 0.85em; }
+
 /* Minimap */
 #minimap {
   position: absolute;

@@ -43,6 +43,8 @@
 - Minimap: canvas-based document overview in editor right margin, shows heading/code/text density, draggable viewport, click to navigate, toggle via View menu or status bar
 - Snippets: Tab-triggered text expansions (built-in: date, time, todo, tbl, code, link, img, meta, etc.), user-editable via Edit > Snippets dialog, custom snippets persisted in localStorage
 - Markdown table editor: visual grid dialog for creating/editing tables, Tab between cells, add/remove rows and columns, auto-formats aligned markdown table output; Edit > Table Editor or toolbar table button
+- LaTeX editing with preview: open .tex files with full TeX syntax highlighting (codemirror-lang-latex), live preview renders sections/math/lists/code/formatting via KaTeX, inline math/textbf/textit/emph/href/cite/ref rendering, .tex file association
+- Spell check: toggleable spell checker in status bar, 29K-word English dictionary, highlights unknown words as lint diagnostics, "Add to dictionary" action, custom dictionary persisted in localStorage, skips code blocks and headings
 
 ### Architecture
 
@@ -85,9 +87,9 @@
 - [x] Markdown linting toggle in status bar -- 2026-10-30
 
 #### P2.5 -- next up
-- [ ] LaTeX editing: open .tex files with TeX syntax highlighting + latex.js rendered preview
+- [x] LaTeX editing: .tex files with TeX syntax highlighting + KaTeX-rendered preview -- 2026-10-30
 - [x] Minimap (canvas-based document overview) -- 2026-10-30
-- [ ] Spell check (beyond browser default -- custom dictionary, ignore code blocks)
+- [x] Spell check (29K-word dictionary, custom dict, skips code blocks) -- 2026-10-30
 - [x] Snippets (Tab-triggered text expansions, user-editable) -- 2026-10-30
 
 #### P3 -- stretch

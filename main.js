@@ -71,6 +71,7 @@ function buildMenu() {
               properties: ['openFile'],
               filters: [
                 { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] },
+                { name: 'LaTeX', extensions: ['tex', 'sty', 'cls', 'bib'] },
                 { name: 'All Files', extensions: ['*'] },
               ],
             });
@@ -524,7 +525,7 @@ app.on('open-file', (event, filePath) => {
 function getFileFromArgs(argv) {
   const args = argv.slice(app.isPackaged ? 1 : 2);
   for (const arg of args) {
-    if (!arg.startsWith('-') && (arg.endsWith('.md') || arg.endsWith('.markdown') || arg.endsWith('.txt'))) {
+    if (!arg.startsWith('-') && (arg.endsWith('.md') || arg.endsWith('.markdown') || arg.endsWith('.txt') || arg.endsWith('.tex'))) {
       if (fs.existsSync(arg)) return path.resolve(arg);
     }
   }

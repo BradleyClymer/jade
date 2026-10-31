@@ -9,6 +9,7 @@ import { linter, lintGutter } from '@codemirror/lint';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { tags } from '@lezer/highlight';
 import { vim } from '@replit/codemirror-vim';
+import { latex as latexLang } from 'codemirror-lang-latex';
 import MarkdownIt from 'markdown-it';
 import mermaid from 'mermaid';
 import katex from 'katex';
@@ -236,6 +237,10 @@ class Tab {
     this.previewScrollTop = 0;
   }
 
+  get isLatex() {
+    return this.filePath && /\.tex$/i.test(this.filePath);
+  }
+
   get name() {
     if (this.filePath) {
       const parts = this.filePath.replace(/\\/g, '/').split('/');
@@ -269,9 +274,13 @@ class JadeApp {
     this.minimapVisible = false;
     this.snippets = this.loadSnippets();
     this.tableEditorActive = false;
+    this.spellCheckEnabled = false;
+    this.spellDict = null;
+    this.customDict = this.loadCustomDict();
     this.vimCompartment = new Compartment();
     this.wrapCompartment = new Compartment();
     this.lintCompartment = new Compartment();
+    this.langCompartment = new Compartment();
 
     this.tabsEl = document.getElementById('tabs');
     this.editorPane = document.getElementById('editor-pane');
@@ -337,7 +346,7 @@ class JadeApp {
       highlightSelectionMatches(),
       syntaxHighlighting(jadeHighlightStyle),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      markdown({ base: markdownLanguage, codeLanguages: languages }),
+      this.langCompartment.of(markdown({ base: markdownLanguage, codeLanguages: languages })),
       updateListener,
       EditorView.domEventHandlers({
         paste: (event) => {
@@ -444,11 +453,7 @@ class JadeApp {
     const btn = document.getElementById('lint-btn');
     btn.classList.toggle('active', this.lintEnabled);
     btn.title = `Markdown lint (${this.lintEnabled ? 'on' : 'off'})`;
-    this.editor.dispatch({
-      effects: this.lintCompartment.reconfigure(
-        this.lintEnabled ? [lintGutter(), linter(lintMarkdown)] : []
-      )
-    });
+    this.refreshSpellCheck();
   }
 
   // Theme
@@ -735,6 +740,7 @@ class JadeApp {
     document.getElementById('wrap-btn').addEventListener('click', () => this.toggleWordWrap());
     document.getElementById('theme-btn').addEventListener('click', () => this.cycleTheme());
     document.getElementById('lint-btn').addEventListener('click', () => this.toggleLint());
+    document.getElementById('spell-btn').addEventListener('click', () => this.toggleSpellCheck());
     document.getElementById('minimap-btn').addEventListener('click', () => this.toggleMinimap());
     document.getElementById('outline-btn').addEventListener('click', () => this.toggleOutline());
     document.getElementById('outline-close').addEventListener('click', () => this.toggleOutline());
@@ -897,6 +903,7 @@ class JadeApp {
 
     // Restore tab state
     this.editor.setState(tab.editorState || this.createState(tab.savedContent));
+    this.syncLanguageMode(tab);
 
     requestAnimationFrame(() => {
       this.editor.scrollDOM.scrollTop = tab.scrollTop;
@@ -999,6 +1006,7 @@ class JadeApp {
       const newState = this.createState(result.content);
       this.editor.setState(newState);
       currentTab.editorState = this.editor.state;
+      this.syncLanguageMode(currentTab);
       this.renderTabs();
       this.updatePreview();
       this.updateStatusBar();
@@ -1076,7 +1084,12 @@ class JadeApp {
 
   async updatePreview() {
     if (this._wysiwygActive) return;
+    const tab = this.tabs[this.activeTabIndex];
     const content = this.editor.state.doc.toString();
+    if (tab && tab.isLatex) {
+      this.previewContent.innerHTML = this.renderLatexPreview(content);
+      return;
+    }
     mermaidCounter = 0;
     const html = md.render(content);
     this.previewContent.innerHTML = html;
@@ -1217,6 +1230,243 @@ class JadeApp {
   setPdfPageSize(size) {
     this.pdfPageSize = size;
     try { localStorage.setItem('jade-pdf-pagesize', size); } catch (_) {}
+  }
+
+  // Language mode switching (markdown vs LaTeX)
+  syncLanguageMode(tab) {
+    if (!tab) return;
+    const isLatex = tab.isLatex;
+    try {
+      this.editor.dispatch({
+        effects: this.langCompartment.reconfigure(
+          isLatex ? latexLang() : markdown({ base: markdownLanguage, codeLanguages: languages })
+        )
+      });
+    } catch (_) {}
+  }
+
+  // LaTeX preview renderer
+  renderLatexPreview(texContent) {
+    const lines = texContent.split('\n');
+    const out = [];
+    let inMath = false;
+    let mathBuf = [];
+    let inVerbatim = false;
+    let verbBuf = [];
+    let inAbstract = false;
+    let title = '';
+    let author = '';
+    let date = '';
+    for (const line of lines) {
+      if (inVerbatim) {
+        if (/\\end\{(verbatim|lstlisting)\}/.test(line)) {
+          out.push('<pre><code>' + this.escapeHtml(verbBuf.join('\n')) + '</code></pre>');
+          verbBuf = [];
+          inVerbatim = false;
+        } else {
+          verbBuf.push(line);
+        }
+        continue;
+      }
+      if (inMath) {
+        if (/\\end\{(equation|align|gather|multline|displaymath|eqnarray|math)\*?\}/.test(line)) {
+          const mathStr = mathBuf.join('\n');
+          try {
+            out.push('<div class="katex-block">' + katex.renderToString(mathStr, { throwOnError: false, displayMode: true }) + '</div>');
+          } catch (_) {
+            out.push('<pre>' + this.escapeHtml(mathStr) + '</pre>');
+          }
+          mathBuf = [];
+          inMath = false;
+        } else {
+          mathBuf.push(line);
+        }
+        continue;
+      }
+      if (/\\begin\{(verbatim|lstlisting)\}/.test(line)) { inVerbatim = true; verbBuf = []; continue; }
+      if (/\\begin\{(equation|align|gather|multline|displaymath|eqnarray|math)\*?\}/.test(line)) { inMath = true; mathBuf = []; continue; }
+      if (/\\begin\{abstract\}/.test(line)) { inAbstract = true; out.push('<blockquote><strong>Abstract</strong><br>'); continue; }
+      if (/\\end\{abstract\}/.test(line)) { inAbstract = false; out.push('</blockquote>'); continue; }
+      const titleM = line.match(/\\title\{(.+?)\}/);
+      if (titleM) { title = titleM[1]; continue; }
+      const authorM = line.match(/\\author\{(.+?)\}/);
+      if (authorM) { author = authorM[1]; continue; }
+      const dateM = line.match(/\\date\{(.+?)\}/);
+      if (dateM) { date = dateM[1]; continue; }
+      if (/\\maketitle/.test(line)) {
+        if (title) out.push('<h1>' + this.renderLatexInline(title) + '</h1>');
+        if (author) out.push('<p class="latex-author">' + this.renderLatexInline(author) + '</p>');
+        if (date) out.push('<p class="latex-date">' + this.renderLatexInline(date) + '</p>');
+        continue;
+      }
+      if (/^\\(documentclass|usepackage|begin\{document\}|end\{document\}|begin\{(itemize|enumerate|description|figure|table|tabular|center|minipage|thebibliography)\}|end\{(itemize|enumerate|description|figure|table|tabular|center|minipage|thebibliography)\}|bibliographystyle|bibliography|newcommand|renewcommand|setlength|pagestyle|tableofcontents|listoffigures|listoftables|appendix)/.test(line.trim())) {
+        if (/\\begin\{(itemize|enumerate)\}/.test(line)) { out.push(/enumerate/.test(line) ? '<ol>' : '<ul>'); continue; }
+        if (/\\end\{(itemize|enumerate)\}/.test(line)) { out.push(/enumerate/.test(line) ? '</ol>' : '</ul>'); continue; }
+        if (/\\begin\{center\}/.test(line)) { out.push('<div style="text-align:center">'); continue; }
+        if (/\\end\{center\}/.test(line)) { out.push('</div>'); continue; }
+        if (/\\tableofcontents/.test(line)) { out.push('<p><em>[Table of Contents]</em></p>'); continue; }
+        continue;
+      }
+      const secM = line.match(/\\(chapter|section|subsection|subsubsection|paragraph)\*?\{(.+?)\}/);
+      if (secM) {
+        const levels = { chapter: 1, section: 2, subsection: 3, subsubsection: 4, paragraph: 5 };
+        const level = levels[secM[1]] || 2;
+        out.push(`<h${level}>${this.renderLatexInline(secM[2])}</h${level}>`);
+        continue;
+      }
+      if (/^\\item/.test(line.trim())) {
+        const itemText = line.trim().replace(/^\\item\s*(\[.*?\])?\s*/, '');
+        out.push('<li>' + this.renderLatexInline(itemText) + '</li>');
+        continue;
+      }
+      const captionM = line.match(/\\caption\{(.+?)\}/);
+      if (captionM) { out.push('<p class="latex-caption"><strong>Figure/Table:</strong> ' + this.renderLatexInline(captionM[1]) + '</p>'); continue; }
+      const labelM = line.match(/\\label\{(.+?)\}/);
+      if (labelM) continue;
+      if (/^\s*%/.test(line)) continue;
+      if (line.trim() === '') { out.push('<br>'); continue; }
+      if (/\$\$.+\$\$/.test(line)) {
+        const mathStr = line.match(/\$\$(.+?)\$\$/)[1];
+        try {
+          out.push('<div class="katex-block">' + katex.renderToString(mathStr, { throwOnError: false, displayMode: true }) + '</div>');
+        } catch (_) { out.push('<p>' + this.escapeHtml(line) + '</p>'); }
+        continue;
+      }
+      if (/\\\[/.test(line) && /\\\]/.test(line)) {
+        const mathStr = line.match(/\\\[(.+?)\\\]/)[1];
+        try {
+          out.push('<div class="katex-block">' + katex.renderToString(mathStr, { throwOnError: false, displayMode: true }) + '</div>');
+        } catch (_) { out.push('<p>' + this.escapeHtml(line) + '</p>'); }
+        continue;
+      }
+      out.push('<p>' + this.renderLatexInline(line) + '</p>');
+    }
+    return out.join('\n');
+  }
+
+  renderLatexInline(text) {
+    let result = text;
+    result = result.replace(/\$(.+?)\$/g, (_, math) => {
+      try { return katex.renderToString(math, { throwOnError: false }); } catch (_) { return '$' + math + '$'; }
+    });
+    result = result.replace(/\\textbf\{(.+?)\}/g, '<strong>$1</strong>');
+    result = result.replace(/\\textit\{(.+?)\}/g, '<em>$1</em>');
+    result = result.replace(/\\emph\{(.+?)\}/g, '<em>$1</em>');
+    result = result.replace(/\\texttt\{(.+?)\}/g, '<code>$1</code>');
+    result = result.replace(/\\underline\{(.+?)\}/g, '<u>$1</u>');
+    result = result.replace(/\\href\{(.+?)\}\{(.+?)\}/g, '<a href="$1">$2</a>');
+    result = result.replace(/\\url\{(.+?)\}/g, '<a href="$1">$1</a>');
+    result = result.replace(/\\footnote\{(.+?)\}/g, '<sup>[fn]</sup>');
+    result = result.replace(/\\ref\{(.+?)\}/g, '<span class="latex-ref">[ref:$1]</span>');
+    result = result.replace(/\\cite\{(.+?)\}/g, '<span class="latex-cite">[$1]</span>');
+    result = result.replace(/~/, '&nbsp;');
+    result = result.replace(/---/g, '&mdash;');
+    result = result.replace(/--/g, '&ndash;');
+    result = result.replace(/``/g, '“');
+    result = result.replace(/''/g, '”');
+    result = result.replace(/\\\\/, '<br>');
+    return result;
+  }
+
+  // Spell check
+  loadCustomDict() {
+    try { return new Set(JSON.parse(localStorage.getItem('jade-custom-dict') || '[]')); } catch (_) { return new Set(); }
+  }
+
+  saveCustomDict() {
+    try { localStorage.setItem('jade-custom-dict', JSON.stringify([...this.customDict])); } catch (_) {}
+  }
+
+  addToDict(word) {
+    this.customDict.add(word.toLowerCase());
+    this.saveCustomDict();
+    if (this.spellCheckEnabled) this.refreshSpellCheck();
+  }
+
+  async ensureSpellDict() {
+    if (this.spellDict) return;
+    this.spellDict = new Set();
+    try {
+      const resp = await fetch('../dist/words.txt');
+      if (resp.ok) {
+        const text = await resp.text();
+        for (const w of text.split('\n')) {
+          const trimmed = w.trim().toLowerCase();
+          if (trimmed) this.spellDict.add(trimmed);
+        }
+      }
+    } catch (_) {}
+    if (this.spellDict.size === 0) {
+      const common = 'the be to of and a in that have i it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us';
+      for (const w of common.split(' ')) this.spellDict.add(w);
+    }
+  }
+
+  toggleSpellCheck() {
+    this.spellCheckEnabled = !this.spellCheckEnabled;
+    const btn = document.getElementById('spell-btn');
+    if (btn) {
+      btn.classList.toggle('active', this.spellCheckEnabled);
+      btn.title = `Spell check (${this.spellCheckEnabled ? 'on' : 'off'})`;
+    }
+    if (this.spellCheckEnabled) {
+      this.ensureSpellDict().then(() => this.refreshSpellCheck());
+    } else {
+      this.refreshSpellCheck();
+    }
+  }
+
+  refreshSpellCheck() {
+    this.editor.dispatch({
+      effects: this.lintCompartment.reconfigure(
+        this.lintEnabled || this.spellCheckEnabled
+          ? [lintGutter(), linter((view) => {
+              const diagnostics = [];
+              if (this.lintEnabled) diagnostics.push(...lintMarkdown(view));
+              if (this.spellCheckEnabled && this.spellDict) diagnostics.push(...this.spellCheckDoc(view));
+              return diagnostics;
+            })]
+          : []
+      )
+    });
+  }
+
+  spellCheckDoc(view) {
+    const diagnostics = [];
+    const doc = view.state.doc;
+    let inCode = false;
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      const text = line.text;
+      if (text.startsWith('```')) { inCode = !inCode; continue; }
+      if (inCode) continue;
+      if (/^#{1,6}\s/.test(text)) continue;
+      if (/^\s*[-*+]\s\[[ xX]\]/.test(text)) continue;
+      const words = text.matchAll(/\b([a-zA-Z]{2,})\b/g);
+      for (const match of words) {
+        const word = match[1].toLowerCase();
+        if (this.spellDict.has(word)) continue;
+        if (this.customDict.has(word)) continue;
+        if (/^[A-Z]{2,}$/.test(match[1])) continue;
+        if (text.indexOf('`') >= 0) {
+          const idx = match.index;
+          const before = text.slice(0, idx);
+          const backtickCount = (before.match(/`/g) || []).length;
+          if (backtickCount % 2 === 1) continue;
+        }
+        diagnostics.push({
+          from: line.from + match.index,
+          to: line.from + match.index + match[1].length,
+          severity: 'info',
+          message: `Unknown word: "${match[1]}"`,
+          actions: [{
+            name: 'Add to dictionary',
+            apply: () => this.addToDict(match[1]),
+          }],
+        });
+      }
+    }
+    return diagnostics;
   }
 
   async exportToPdf() {
