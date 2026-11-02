@@ -16,6 +16,14 @@
     "appId": "com.jade.editor",
     "productName": "Jade",
     "icon": "assets/icon.png",
+    "directories": {
+      "output": "release"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "BradleyClymer",
+      "repo": "jade"
+    },
     "files": [
       "main.js",
       "preload.js",

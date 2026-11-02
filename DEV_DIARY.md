@@ -50,6 +50,12 @@
 - Multi-window: File > Move Tab to New Window opens the current tab's file in a separate Jade window
 - Collaborative editing (CRDT): real-time peer-to-peer collaboration via Yjs + y-webrtc. Collab panel (Ctrl+Shift+C or status bar): start a session to get a room code, share it so others can join. Remote cursors with colored selections and name labels. Yjs UndoManager for collaborative undo/redo. WebRTC P2P sync through public signaling servers (no server setup needed). Username persisted in localStorage.
 - Multi-language file support: open and edit 50+ programming languages with syntax highlighting. Auto-detects language from file extension via CodeMirror language-data (JS, TS, Python, Rust, Go, C/C++, Java, C#, Ruby, PHP, Swift, Kotlin, Scala, Haskell, Dart, Lua, Perl, R, PowerShell, Shell, SQL, HTML, CSS, SCSS, LESS, YAML, TOML, JSON, XML, Dockerfile, Makefile, GraphQL, Protobuf, and more). Preview pane shows syntax-highlighted source for code files. Status bar shows detected language. Open dialog organized by file category.
+- Go to line (Ctrl+G): dialog to jump to a specific line number
+- Line bookmarks: Ctrl+F2 toggles a bookmark on the current line, F2 jumps to next, Shift+F2 to previous. Bookmarked lines highlighted in the gutter.
+- Line ending detection and toggle: auto-detects CRLF/LF/CR on file open, click the status bar indicator to toggle between LF and CRLF
+- Session save/restore: reopens your last set of tabs on startup, auto-saves session state every 30s
+- CI/CD: GitHub Actions workflows for CI (lint, audit, build on all platforms) and Release (tag-triggered, uploads binaries to GitHub Releases via electron-builder publish)
+- Security: Content Security Policy headers on all windows, npm audit in CI
 
 ### Architecture
 
@@ -105,17 +111,17 @@
 
 #### P4 -- Notepad++ parity
 - [x] Multi-language file support (50+ languages, auto-detect, syntax-highlighted preview) -- 2026-11-02
-- [ ] Line bookmarks (Ctrl+F2 toggle, F2 next, Shift+F2 prev)
+- [x] Line bookmarks (Ctrl+F2 toggle, F2 next, Shift+F2 prev) -- 2026-11-02
+- [x] Go to line (Ctrl+G) -- 2026-11-02
+- [x] Line ending selector (CRLF/LF, auto-detect, status bar toggle) -- 2026-11-02
+- [x] Session save/restore (reopen last set of tabs) -- 2026-11-02
+- [x] CI/CD (GitHub Actions: lint/audit/build on push, tag-triggered release to GitHub Releases) -- 2026-11-02
+- [x] Security hardening (CSP headers, npm audit gate) -- 2026-11-02
 - [ ] Macro recording and playback
 - [ ] Column/block selection mode
 - [ ] Character encoding selector (UTF-8, ASCII, Latin-1, etc.)
-- [ ] Line ending selector (CRLF/LF/CR)
-- [ ] Go to line (Ctrl+G)
 - [ ] Document comparison / diff two tabs
-- [ ] Brace/bracket highlighting and matching navigation
-- [ ] Code folding for all languages
-- [ ] Auto-indent for code files
-- [ ] Session save/restore (reopen last set of tabs)
+- [ ] Published binaries on GitHub Releases (tag v0.2.0)
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
 
 ### Cross-platform notes

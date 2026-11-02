@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -228,6 +228,40 @@ function buildMenu() {
         },
         { type: 'separator' },
         {
+          label: 'Go to Line...',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('go-to-line');
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Toggle Bookmark',
+          accelerator: 'CmdOrCtrl+F2',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-bookmark');
+          },
+        },
+        {
+          label: 'Next Bookmark',
+          accelerator: 'F2',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('next-bookmark');
+          },
+        },
+        {
+          label: 'Previous Bookmark',
+          accelerator: 'Shift+F2',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('prev-bookmark');
+          },
+        },
+        { type: 'separator' },
+        {
           label: 'Snippets...',
           click: () => {
             const win = getActiveWindow();
@@ -397,7 +431,7 @@ function buildMenu() {
       submenu: [
         {
           label: 'Git Panel',
-          accelerator: 'CmdOrCtrl+G',
+          accelerator: 'CmdOrCtrl+Shift+G',
           click: () => {
             const win = getActiveWindow();
             if (win) win.webContents.send('toggle-git-panel');
@@ -696,6 +730,22 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+      cb({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: file:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self' wss: ws:;"
+          ],
+        },
+      });
+    });
+
     buildMenu();
     const filePath = getFileFromArgs(process.argv);
     createWindow(filePath);

@@ -375,6 +375,8 @@ class JadeApp {
     this.spellCheckEnabled = false;
     this.spellDict = null;
     this.customDict = this.loadCustomDict();
+    this.bookmarks = new Set();
+    this.lineEnding = 'LF';
     this.collabActive = false;
     this.collabDoc = null;
     this.collabProvider = null;
@@ -414,8 +416,8 @@ class JadeApp {
     // Apply saved theme
     this.setTheme(this.currentTheme);
 
-    // Open a blank tab to start
-    this.newTab();
+    // Restore previous session or open blank tab
+    this.restoreSession();
   }
 
   makeExtensions() {
@@ -477,6 +479,10 @@ class JadeApp {
         { key: 'Mod-Shift-k', run: () => { this.toolbarAction('code'); return true; } },
         { key: 'Mod-Shift-x', run: () => { this.toolbarAction('strikethrough'); return true; } },
         { key: 'Mod-Shift-o', run: () => { this.toggleOutline(); return true; } },
+        { key: 'Ctrl-g', run: () => { this.goToLine(); return true; } },
+        { key: 'Ctrl-F2', run: () => { this.toggleBookmark(); return true; } },
+        { key: 'F2', run: () => { this.nextBookmark(); return true; } },
+        { key: 'Shift-F2', run: () => { this.prevBookmark(); return true; } },
         { key: 'Tab', run: () => this.tryExpandSnippet() },
         ...closeBracketsKeymap,
         ...defaultKeymap,
@@ -941,6 +947,10 @@ class JadeApp {
     window.jade.onReloadPlugins(() => this.loadPlugins());
     window.jade.onOpenPluginDir(() => window.jade.openPluginDir());
     window.jade.onMoveTabToWindow(() => this.moveTabToNewWindow());
+    window.jade.onGoToLine(() => this.goToLine());
+    window.jade.onToggleBookmark(() => this.toggleBookmark());
+    window.jade.onNextBookmark(() => this.nextBookmark());
+    window.jade.onPrevBookmark(() => this.prevBookmark());
     window.jade.onToggleGitPanel(() => this.toggleGitPanel());
     window.jade.onShowGitDiff(() => this.showCurrentFileDiff());
     window.jade.onToggleCollabPanel(() => this.toggleCollabPanel());
@@ -948,6 +958,7 @@ class JadeApp {
 
   bindUI() {
     document.getElementById('new-tab-btn').addEventListener('click', () => this.newTab());
+    document.getElementById('status-eol').addEventListener('click', () => this.toggleLineEnding());
     document.getElementById('collab-btn').addEventListener('click', () => this.toggleCollabPanel());
     document.getElementById('collab-close').addEventListener('click', () => this.toggleCollabPanel());
   }
@@ -974,7 +985,8 @@ class JadeApp {
 
   // Auto-save
   initAutoSave() {
-    setInterval(() => this.autoSave(), 30000);
+    setInterval(() => { this.autoSave(); this.saveSession(); }, 30000);
+    window.addEventListener('beforeunload', () => this.saveSession());
   }
 
   async autoSave() {
@@ -1114,6 +1126,11 @@ class JadeApp {
 
     const result = await window.jade.readFile(filePath);
     if (!result.success) return;
+
+    this.lineEnding = this.detectLineEnding(result.content);
+    const eolEl = document.getElementById('status-eol');
+    if (eolEl) eolEl.textContent = this.lineEnding;
+    this.bookmarks.clear();
 
     // If current tab is empty and unmodified, replace it in-place
     const currentTab = this.tabs[this.activeTabIndex];
@@ -2500,6 +2517,130 @@ class JadeApp {
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  // Go to line
+  goToLine() {
+    const overlay = document.createElement('div');
+    overlay.className = 'goto-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'goto-dialog';
+    dialog.innerHTML = '<label>Go to line:</label>';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'goto-input';
+    input.min = 1;
+    input.max = this.editor.state.doc.lines;
+    input.placeholder = `1 - ${this.editor.state.doc.lines}`;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const line = parseInt(input.value, 10);
+        if (line >= 1 && line <= this.editor.state.doc.lines) {
+          const lineInfo = this.editor.state.doc.line(line);
+          this.editor.dispatch({
+            selection: { anchor: lineInfo.from },
+            scrollIntoView: true,
+          });
+          this.editor.focus();
+        }
+        overlay.remove();
+      } else if (e.key === 'Escape') {
+        overlay.remove();
+        this.editor.focus();
+      }
+    });
+    dialog.appendChild(input);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); this.editor.focus(); } });
+    input.focus();
+  }
+
+  // Line bookmarks
+  toggleBookmark() {
+    const line = this.editor.state.doc.lineAt(this.editor.state.selection.main.head).number;
+    if (this.bookmarks.has(line)) {
+      this.bookmarks.delete(line);
+    } else {
+      this.bookmarks.add(line);
+    }
+    this.updateBookmarkGutter();
+  }
+
+  nextBookmark() {
+    if (this.bookmarks.size === 0) return;
+    const currentLine = this.editor.state.doc.lineAt(this.editor.state.selection.main.head).number;
+    const sorted = [...this.bookmarks].sort((a, b) => a - b);
+    const next = sorted.find(l => l > currentLine) || sorted[0];
+    if (next <= this.editor.state.doc.lines) {
+      const lineInfo = this.editor.state.doc.line(next);
+      this.editor.dispatch({ selection: { anchor: lineInfo.from }, scrollIntoView: true });
+    }
+  }
+
+  prevBookmark() {
+    if (this.bookmarks.size === 0) return;
+    const currentLine = this.editor.state.doc.lineAt(this.editor.state.selection.main.head).number;
+    const sorted = [...this.bookmarks].sort((a, b) => b - a);
+    const prev = sorted.find(l => l < currentLine) || sorted[0];
+    if (prev <= this.editor.state.doc.lines) {
+      const lineInfo = this.editor.state.doc.line(prev);
+      this.editor.dispatch({ selection: { anchor: lineInfo.from }, scrollIntoView: true });
+    }
+  }
+
+  updateBookmarkGutter() {
+    const gutterEls = this.editor.dom.querySelectorAll('.cm-lineNumbers .cm-gutterElement');
+    gutterEls.forEach(el => el.classList.remove('bookmarked'));
+    gutterEls.forEach(el => {
+      const lineNum = parseInt(el.textContent, 10);
+      if (this.bookmarks.has(lineNum)) {
+        el.classList.add('bookmarked');
+      }
+    });
+  }
+
+  // Line ending detection and toggle
+  detectLineEnding(content) {
+    if (content.includes('\r\n')) return 'CRLF';
+    if (content.includes('\r')) return 'CR';
+    return 'LF';
+  }
+
+  toggleLineEnding() {
+    this.lineEnding = this.lineEnding === 'LF' ? 'CRLF' : 'LF';
+    const btn = document.getElementById('status-eol');
+    if (btn) btn.textContent = this.lineEnding;
+  }
+
+  // Session save/restore
+  saveSession() {
+    const sessionData = this.tabs
+      .filter(t => t.filePath)
+      .map(t => t.filePath);
+    try {
+      localStorage.setItem('jade-session-tabs', JSON.stringify(sessionData));
+      localStorage.setItem('jade-session-active', String(this.activeTabIndex));
+    } catch (_) {}
+  }
+
+  async restoreSession() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('jade-session-tabs') || '[]');
+      const activeIdx = parseInt(localStorage.getItem('jade-session-active') || '0', 10);
+      if (saved.length > 0) {
+        for (const filePath of saved) {
+          await this.openFile(filePath);
+        }
+        if (activeIdx >= 0 && activeIdx < this.tabs.length) {
+          this.switchToTab(activeIdx);
+        }
+      } else {
+        this.newTab();
+      }
+    } catch (_) {
+      this.newTab();
+    }
   }
 
   // Collaborative editing (CRDT)
