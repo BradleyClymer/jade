@@ -1136,6 +1136,17 @@ body.dragging-file::after {
   background: var(--border-primary);
 }
 
+/* Macro recording */
+#macro-btn.active {
+  color: #ff4444;
+  font-weight: bold;
+  animation: macro-pulse 1s ease-in-out infinite;
+}
+@keyframes macro-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Go to line dialog */
 .goto-overlay {
   position: fixed;

@@ -377,6 +377,11 @@ class JadeApp {
     this.customDict = this.loadCustomDict();
     this.bookmarks = new Set();
     this.lineEnding = 'LF';
+    this.encoding = 'utf-8';
+    this.macroRecording = false;
+    this.macroSteps = [];
+    this.lastMacro = [];
+    this.macroCompartment = new Compartment();
     this.collabActive = false;
     this.collabDoc = null;
     this.collabProvider = null;
@@ -439,6 +444,7 @@ class JadeApp {
       this.wrapCompartment.of(this.wordWrapEnabled ? EditorView.lineWrapping : []),
       this.lintCompartment.of([]),
       this.collabCompartment.of([]),
+      this.macroCompartment.of([]),
       lineNumbers(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
@@ -483,6 +489,8 @@ class JadeApp {
         { key: 'Ctrl-F2', run: () => { this.toggleBookmark(); return true; } },
         { key: 'F2', run: () => { this.nextBookmark(); return true; } },
         { key: 'Shift-F2', run: () => { this.prevBookmark(); return true; } },
+        { key: 'Ctrl-Shift-r', run: () => { this.toggleMacroRecording(); return true; } },
+        { key: 'Ctrl-Shift-p', run: () => { this.playMacro(); return true; } },
         { key: 'Tab', run: () => this.tryExpandSnippet() },
         ...closeBracketsKeymap,
         ...defaultKeymap,
@@ -951,6 +959,9 @@ class JadeApp {
     window.jade.onToggleBookmark(() => this.toggleBookmark());
     window.jade.onNextBookmark(() => this.nextBookmark());
     window.jade.onPrevBookmark(() => this.prevBookmark());
+    window.jade.onToggleMacro(() => this.toggleMacroRecording());
+    window.jade.onPlayMacro(() => this.playMacro());
+    window.jade.onDiffTabs(() => this.diffTwoTabs());
     window.jade.onToggleGitPanel(() => this.toggleGitPanel());
     window.jade.onShowGitDiff(() => this.showCurrentFileDiff());
     window.jade.onToggleCollabPanel(() => this.toggleCollabPanel());
@@ -959,6 +970,12 @@ class JadeApp {
   bindUI() {
     document.getElementById('new-tab-btn').addEventListener('click', () => this.newTab());
     document.getElementById('status-eol').addEventListener('click', () => this.toggleLineEnding());
+    document.getElementById('status-encoding').addEventListener('click', () => this.cycleEncoding());
+    document.getElementById('macro-btn').addEventListener('click', () => {
+      if (this.macroRecording) this.toggleMacroRecording();
+      else if (this.lastMacro.length > 0) this.playMacro();
+      else this.toggleMacroRecording();
+    });
     document.getElementById('collab-btn').addEventListener('click', () => this.toggleCollabPanel());
     document.getElementById('collab-close').addEventListener('click', () => this.toggleCollabPanel());
   }
@@ -2519,6 +2536,165 @@ class JadeApp {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   }
 
+  // Macro recording
+  toggleMacroRecording() {
+    if (this.macroRecording) {
+      this.macroRecording = false;
+      this.lastMacro = [...this.macroSteps];
+      this.macroSteps = [];
+      this.editor.dispatch({ effects: this.macroCompartment.reconfigure([]) });
+      const btn = document.getElementById('macro-btn');
+      if (btn) { btn.classList.remove('active'); btn.textContent = 'Macro'; }
+    } else {
+      this.macroRecording = true;
+      this.macroSteps = [];
+      const listener = EditorView.updateListener.of((update) => {
+        if (!this.macroRecording) return;
+        for (const tr of update.transactions) {
+          if (tr.docChanged) {
+            tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+              this.macroSteps.push({ type: 'change', from: fromA, to: toA, insert: inserted.toString() });
+            });
+          }
+          if (tr.selection) {
+            const sel = tr.selection.main;
+            this.macroSteps.push({ type: 'select', anchor: sel.anchor, head: sel.head });
+          }
+        }
+      });
+      this.editor.dispatch({ effects: this.macroCompartment.reconfigure(listener) });
+      const btn = document.getElementById('macro-btn');
+      if (btn) { btn.classList.add('active'); btn.textContent = 'REC'; }
+    }
+  }
+
+  playMacro() {
+    if (this.lastMacro.length === 0) return;
+    const doc = this.editor.state.doc;
+    for (const step of this.lastMacro) {
+      if (step.type === 'change') {
+        const from = Math.min(step.from, this.editor.state.doc.length);
+        const to = Math.min(step.to, this.editor.state.doc.length);
+        this.editor.dispatch({ changes: { from, to, insert: step.insert } });
+      } else if (step.type === 'select') {
+        const anchor = Math.min(step.anchor, this.editor.state.doc.length);
+        const head = Math.min(step.head, this.editor.state.doc.length);
+        this.editor.dispatch({ selection: { anchor, head } });
+      }
+    }
+  }
+
+  // Document comparison (diff two tabs)
+  diffTwoTabs() {
+    if (this.tabs.length < 2) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'diff-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'diff-dialog';
+    dialog.innerHTML = '<h3 style="margin:0 0 12px">Compare Two Tabs</h3>';
+
+    const makeSelect = (label, defaultIdx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'margin-bottom:8px; display:flex; align-items:center; gap:8px;';
+      row.innerHTML = `<label style="min-width:50px; font-size:13px; color:var(--text-muted)">${label}</label>`;
+      const sel = document.createElement('select');
+      sel.style.cssText = 'flex:1; background:var(--bg-secondary); border:1px solid var(--border-primary); color:var(--text-primary); padding:4px 8px; border-radius:4px; font-size:13px;';
+      this.tabs.forEach((tab, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = tab.name;
+        if (i === defaultIdx) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      row.appendChild(sel);
+      dialog.appendChild(row);
+      return sel;
+    };
+
+    const selA = makeSelect('Left:', 0);
+    const selB = makeSelect('Right:', Math.min(1, this.tabs.length - 1));
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex; gap:8px; margin-top:12px;';
+    const compareBtn = document.createElement('button');
+    compareBtn.className = 'collab-action-btn';
+    compareBtn.textContent = 'Compare';
+    compareBtn.addEventListener('click', () => {
+      const idxA = parseInt(selA.value, 10);
+      const idxB = parseInt(selB.value, 10);
+      const tabA = this.tabs[idxA];
+      const tabB = this.tabs[idxB];
+      const contentA = idxA === this.activeTabIndex ? this.editor.state.doc.toString() : (tabA.editorState ? tabA.editorState.doc.toString() : tabA.savedContent);
+      const contentB = idxB === this.activeTabIndex ? this.editor.state.doc.toString() : (tabB.editorState ? tabB.editorState.doc.toString() : tabB.savedContent);
+      overlay.remove();
+      this.showTabDiff(tabA.name, contentA, tabB.name, contentB);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'collab-action-btn collab-leave-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    btnRow.appendChild(compareBtn);
+    btnRow.appendChild(cancelBtn);
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  showTabDiff(nameA, contentA, nameB, contentB) {
+    const linesA = contentA.split('\n');
+    const linesB = contentB.split('\n');
+    const maxLen = Math.max(linesA.length, linesB.length);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'diff-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'diff-dialog';
+    dialog.style.cssText = 'width:90vw; max-width:1200px; max-height:80vh; overflow:auto;';
+    dialog.innerHTML = `<h3 style="margin:0 0 12px">${this.escapeHtml(nameA)} vs ${this.escapeHtml(nameB)}</h3>`;
+
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%; border-collapse:collapse; font-family:monospace; font-size:12px;';
+
+    for (let i = 0; i < maxLen; i++) {
+      const a = i < linesA.length ? linesA[i] : '';
+      const b = i < linesB.length ? linesB[i] : '';
+      const tr = document.createElement('tr');
+      const isDiff = a !== b;
+      tr.style.background = isDiff ? 'rgba(200,100,50,0.15)' : 'transparent';
+
+      const tdNum = document.createElement('td');
+      tdNum.style.cssText = 'width:40px; text-align:right; padding:1px 6px; color:var(--text-muted); border-right:1px solid var(--border-primary); user-select:none;';
+      tdNum.textContent = i + 1;
+      tr.appendChild(tdNum);
+
+      const tdA = document.createElement('td');
+      tdA.style.cssText = 'width:50%; padding:1px 8px; white-space:pre-wrap; word-break:break-all;' +
+        (isDiff && a ? 'background:rgba(200,50,50,0.2);' : '');
+      tdA.textContent = a;
+      tr.appendChild(tdA);
+
+      const tdB = document.createElement('td');
+      tdB.style.cssText = 'width:50%; padding:1px 8px; white-space:pre-wrap; word-break:break-all; border-left:1px solid var(--border-primary);' +
+        (isDiff && b ? 'background:rgba(50,200,50,0.2);' : '');
+      tdB.textContent = b;
+      tr.appendChild(tdB);
+
+      table.appendChild(tr);
+    }
+    dialog.appendChild(table);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'diff-close';
+    closeBtn.textContent = 'Close';
+    closeBtn.style.marginTop = '12px';
+    closeBtn.addEventListener('click', () => overlay.remove());
+    dialog.appendChild(closeBtn);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
   // Go to line
   goToLine() {
     const overlay = document.createElement('div');
@@ -2611,6 +2787,16 @@ class JadeApp {
     this.lineEnding = this.lineEnding === 'LF' ? 'CRLF' : 'LF';
     const btn = document.getElementById('status-eol');
     if (btn) btn.textContent = this.lineEnding;
+  }
+
+  cycleEncoding() {
+    const encodings = ['utf-8', 'ascii', 'latin1', 'utf-16le'];
+    const labels = ['UTF-8', 'ASCII', 'Latin-1', 'UTF-16 LE'];
+    const idx = encodings.indexOf(this.encoding);
+    const next = (idx + 1) % encodings.length;
+    this.encoding = encodings[next];
+    const el = document.getElementById('status-encoding');
+    if (el) el.textContent = labels[next];
   }
 
   // Session save/restore

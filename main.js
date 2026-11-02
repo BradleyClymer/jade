@@ -268,6 +268,32 @@ function buildMenu() {
             if (win) win.webContents.send('open-snippets');
           },
         },
+        { type: 'separator' },
+        {
+          label: 'Start/Stop Macro Recording',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-macro');
+          },
+        },
+        {
+          label: 'Play Macro',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('play-macro');
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Compare Two Tabs...',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('diff-tabs');
+          },
+        },
+        { type: 'separator' },
         {
           label: 'Table Editor...',
           click: () => {

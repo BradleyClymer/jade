@@ -56,6 +56,9 @@
 - Session save/restore: reopens your last set of tabs on startup, auto-saves session state every 30s
 - CI/CD: GitHub Actions workflows for CI (lint, audit, build on all platforms) and Release (tag-triggered, uploads binaries to GitHub Releases via electron-builder publish)
 - Security: Content Security Policy headers on all windows, npm audit in CI
+- Macro recording: Ctrl+Shift+R starts/stops recording editor changes, Ctrl+Shift+P replays the last macro. Status bar button pulses red during recording.
+- Document comparison: Edit > Compare Two Tabs opens a side-by-side diff of any two open tabs with line-level change highlighting
+- Character encoding selector: click the encoding indicator in the status bar to cycle through UTF-8, ASCII, Latin-1, UTF-16 LE
 
 ### Architecture
 
@@ -117,10 +120,10 @@
 - [x] Session save/restore (reopen last set of tabs) -- 2026-11-02
 - [x] CI/CD (GitHub Actions: lint/audit/build on push, tag-triggered release to GitHub Releases) -- 2026-11-02
 - [x] Security hardening (CSP headers, npm audit gate) -- 2026-11-02
-- [ ] Macro recording and playback
-- [ ] Column/block selection mode
-- [ ] Character encoding selector (UTF-8, ASCII, Latin-1, etc.)
-- [ ] Document comparison / diff two tabs
+- [x] Macro recording and playback (Ctrl+Shift+R / Ctrl+Shift+P) -- 2026-11-02
+- [x] Character encoding selector (UTF-8, ASCII, Latin-1, UTF-16 LE) -- 2026-11-02
+- [x] Document comparison / diff two tabs -- 2026-11-02
+- [x] Column/block selection mode (Alt+Shift+drag, already via CM6 rectangularSelection) -- 2026-11-02
 - [ ] Published binaries on GitHub Releases (tag v0.2.0)
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
 
