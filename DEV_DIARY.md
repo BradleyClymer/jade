@@ -48,6 +48,7 @@
 - Git integration: Git panel (Ctrl+G) shows branch, modified/staged/untracked files with status indicators, stage/unstage buttons per file, diff viewer with syntax-colored add/delete/hunk lines, commit with message input; Git menu with panel toggle and diff current file
 - Plugin system: JS plugins in `~/.jade/plugins/` auto-loaded at startup. Plugin API: registerCommand, registerPreviewTransform, insertText, getContent, setContent, getSelection, getFilePath, showNotification. Plugins menu to reload and open folder.
 - Multi-window: File > Move Tab to New Window opens the current tab's file in a separate Jade window
+- Collaborative editing (CRDT): real-time peer-to-peer collaboration via Yjs + y-webrtc. Collab panel (Ctrl+Shift+C or status bar): start a session to get a room code, share it so others can join. Remote cursors with colored selections and name labels. Yjs UndoManager for collaborative undo/redo. WebRTC P2P sync through public signaling servers (no server setup needed). Username persisted in localStorage.
 
 ### Architecture
 
@@ -99,7 +100,7 @@
 - [x] Plugin system (JS plugins in ~/.jade/plugins/, API for commands/transforms) -- 2026-10-30
 - [x] Git integration (diff view, stage/unstage, commit from editor) -- 2026-10-30
 - [x] Multi-window support (move tab to new window) -- 2026-10-30
-- [ ] Collaborative editing (CRDT)
+- [x] Collaborative editing (CRDT via Yjs + y-webrtc + y-codemirror.next) -- 2026-11-02
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
 
 ### Cross-platform notes

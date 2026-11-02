@@ -43,6 +43,10 @@
       <div id="git-header"><span>Git</span><button id="git-close">&times;</button></div>
       <div id="git-content"></div>
     </div>
+    <div id="collab-panel" class="collab-hidden">
+      <div id="collab-header"><span>Collaborate</span><button id="collab-close">&times;</button></div>
+      <div id="collab-content"></div>
+    </div>
     <div id="editor-pane">
       <div id="minimap" class="minimap-hidden">
         <canvas id="minimap-canvas"></canvas>
@@ -59,6 +63,7 @@
     <span id="status-cursor">Ln 1, Col 1</span>
     <span id="status-words">0 words</span>
     <span id="status-encoding">UTF-8</span>
+    <button id="collab-btn" class="status-btn" title="Collaborate">Collab</button>
     <button id="minimap-btn" class="status-btn" title="Minimap">Map</button>
     <button id="outline-btn" class="status-btn" title="Document outline (Ctrl+Shift+O)">Outline</button>
     <button id="lint-btn" class="status-btn" title="Markdown lint (off)">Lint</button>

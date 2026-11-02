@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('jade', {
   onOpenPluginDir: (cb) => ipcRenderer.on('open-plugin-dir', () => cb()),
   onMoveTabToWindow: (cb) => ipcRenderer.on('move-tab-to-window', () => cb()),
   openInNewWindow: (filePath) => ipcRenderer.invoke('open-in-new-window', filePath),
+  onToggleCollabPanel: (cb) => ipcRenderer.on('toggle-collab-panel', () => cb()),
   onToggleGitPanel: (cb) => ipcRenderer.on('toggle-git-panel', () => cb()),
   onShowGitDiff: (cb) => ipcRenderer.on('show-git-diff', () => cb()),
   gitStatus: (cwd) => ipcRenderer.invoke('git-status', cwd),

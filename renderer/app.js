@@ -10,6 +10,9 @@ import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } 
 import { tags } from '@lezer/highlight';
 import { vim } from '@replit/codemirror-vim';
 import { latex as latexLang } from 'codemirror-lang-latex';
+import * as Y from 'yjs';
+import { WebrtcProvider } from 'y-webrtc';
+import { yCollab } from 'y-codemirror.next';
 import MarkdownIt from 'markdown-it';
 import mermaid from 'mermaid';
 import katex from 'katex';
@@ -279,10 +282,18 @@ class JadeApp {
     this.spellCheckEnabled = false;
     this.spellDict = null;
     this.customDict = this.loadCustomDict();
+    this.collabActive = false;
+    this.collabDoc = null;
+    this.collabProvider = null;
+    this.collabText = null;
+    this.collabRoomId = null;
+    this.collabPanelVisible = false;
+    this.collabUsername = this.loadCollabUsername();
     this.vimCompartment = new Compartment();
     this.wrapCompartment = new Compartment();
     this.lintCompartment = new Compartment();
     this.langCompartment = new Compartment();
+    this.collabCompartment = new Compartment();
 
     this.tabsEl = document.getElementById('tabs');
     this.editorPane = document.getElementById('editor-pane');
@@ -332,6 +343,7 @@ class JadeApp {
       this.vimCompartment.of([]),
       this.wrapCompartment.of(this.wordWrapEnabled ? EditorView.lineWrapping : []),
       this.lintCompartment.of([]),
+      this.collabCompartment.of([]),
       lineNumbers(),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
@@ -838,10 +850,13 @@ class JadeApp {
     window.jade.onMoveTabToWindow(() => this.moveTabToNewWindow());
     window.jade.onToggleGitPanel(() => this.toggleGitPanel());
     window.jade.onShowGitDiff(() => this.showCurrentFileDiff());
+    window.jade.onToggleCollabPanel(() => this.toggleCollabPanel());
   }
 
   bindUI() {
     document.getElementById('new-tab-btn').addEventListener('click', () => this.newTab());
+    document.getElementById('collab-btn').addEventListener('click', () => this.toggleCollabPanel());
+    document.getElementById('collab-close').addEventListener('click', () => this.toggleCollabPanel());
   }
 
   // Recent files
@@ -2340,6 +2355,230 @@ class JadeApp {
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  // Collaborative editing (CRDT)
+  loadCollabUsername() {
+    try { return localStorage.getItem('jade-collab-username') || 'User-' + Math.random().toString(36).slice(2, 6); } catch (_) { return 'User-' + Math.random().toString(36).slice(2, 6); }
+  }
+
+  saveCollabUsername(name) {
+    this.collabUsername = name;
+    try { localStorage.setItem('jade-collab-username', name); } catch (_) {}
+    if (this.collabProvider) {
+      this.collabProvider.awareness.setLocalStateField('user', {
+        name: this.collabUsername,
+        color: this._collabColor,
+        colorLight: this._collabColorLight,
+      });
+    }
+  }
+
+  generateCollabColor() {
+    const hue = Math.floor(Math.random() * 360);
+    this._collabColor = `hsl(${hue}, 70%, 45%)`;
+    this._collabColorLight = `hsl(${hue}, 70%, 90%)`;
+  }
+
+  generateRoomId() {
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let id = '';
+    for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    return 'jade-' + id;
+  }
+
+  startCollabSession() {
+    if (this.collabActive) return;
+    this.collabRoomId = this.generateRoomId();
+    this._initCollab(this.editor.state.doc.toString());
+    this.updateCollabPanel();
+  }
+
+  joinCollabSession(roomId) {
+    if (this.collabActive) return;
+    if (!roomId || !roomId.trim()) return;
+    this.collabRoomId = roomId.trim();
+    this._initCollab(null);
+    this.updateCollabPanel();
+  }
+
+  _initCollab(initialContent) {
+    this.generateCollabColor();
+    this.collabDoc = new Y.Doc();
+    this.collabText = this.collabDoc.getText('codemirror');
+
+    if (initialContent !== null) {
+      this.collabText.insert(0, initialContent);
+    }
+
+    this.collabProvider = new WebrtcProvider(this.collabRoomId, this.collabDoc, {
+      signaling: ['wss://signaling.yjs.dev', 'wss://y-webrtc-signaling-eu.herokuapp.com', 'wss://y-webrtc-signaling-us.herokuapp.com'],
+    });
+
+    this.collabProvider.awareness.setLocalStateField('user', {
+      name: this.collabUsername,
+      color: this._collabColor,
+      colorLight: this._collabColorLight,
+    });
+
+    const undoManager = new Y.UndoManager(this.collabText);
+
+    this.editor.dispatch({
+      effects: this.collabCompartment.reconfigure(
+        yCollab(this.collabText, this.collabProvider.awareness, { undoManager })
+      ),
+    });
+
+    this.collabActive = true;
+
+    this.collabProvider.awareness.on('change', () => {
+      this.updateCollabPanel();
+    });
+
+    this.collabProvider.on('peers', () => {
+      this.updateCollabPanel();
+    });
+
+    const btn = document.getElementById('collab-btn');
+    if (btn) btn.classList.add('active');
+  }
+
+  leaveCollabSession() {
+    if (!this.collabActive) return;
+
+    const currentContent = this.editor.state.doc.toString();
+
+    this.editor.dispatch({
+      effects: this.collabCompartment.reconfigure([]),
+    });
+
+    if (this.collabProvider) {
+      this.collabProvider.awareness.setLocalState(null);
+      this.collabProvider.disconnect();
+      this.collabProvider.destroy();
+      this.collabProvider = null;
+    }
+    if (this.collabDoc) {
+      this.collabDoc.destroy();
+      this.collabDoc = null;
+    }
+    this.collabText = null;
+    this.collabRoomId = null;
+    this.collabActive = false;
+
+    const btn = document.getElementById('collab-btn');
+    if (btn) btn.classList.remove('active');
+
+    this.updateCollabPanel();
+  }
+
+  toggleCollabPanel() {
+    this.collabPanelVisible = !this.collabPanelVisible;
+    const panel = document.getElementById('collab-panel');
+    if (panel) {
+      panel.classList.toggle('collab-hidden', !this.collabPanelVisible);
+    }
+    this.updateCollabPanel();
+  }
+
+  updateCollabPanel() {
+    const content = document.getElementById('collab-content');
+    if (!content) return;
+    content.innerHTML = '';
+
+    if (!this.collabActive) {
+      const nameRow = document.createElement('div');
+      nameRow.className = 'collab-row';
+      nameRow.innerHTML = '<label>Name:</label>';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'collab-input';
+      nameInput.value = this.collabUsername;
+      nameInput.addEventListener('change', () => this.saveCollabUsername(nameInput.value));
+      nameRow.appendChild(nameInput);
+      content.appendChild(nameRow);
+
+      const startBtn = document.createElement('button');
+      startBtn.className = 'collab-action-btn';
+      startBtn.textContent = 'Start Session';
+      startBtn.addEventListener('click', () => this.startCollabSession());
+      content.appendChild(startBtn);
+
+      const joinRow = document.createElement('div');
+      joinRow.className = 'collab-row';
+      joinRow.style.marginTop = '8px';
+      joinRow.innerHTML = '<label>Room:</label>';
+      const roomInput = document.createElement('input');
+      roomInput.type = 'text';
+      roomInput.className = 'collab-input';
+      roomInput.placeholder = 'jade-xxxxxx';
+      joinRow.appendChild(roomInput);
+      content.appendChild(joinRow);
+
+      const joinBtn = document.createElement('button');
+      joinBtn.className = 'collab-action-btn';
+      joinBtn.textContent = 'Join Session';
+      joinBtn.addEventListener('click', () => this.joinCollabSession(roomInput.value));
+      content.appendChild(joinBtn);
+    } else {
+      const roomRow = document.createElement('div');
+      roomRow.className = 'collab-room-id';
+      roomRow.innerHTML = `<span>Room: <strong>${this.escapeHtml(this.collabRoomId)}</strong></span>`;
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'collab-copy-btn';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(this.collabRoomId);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      });
+      roomRow.appendChild(copyBtn);
+      content.appendChild(roomRow);
+
+      const peersLabel = document.createElement('div');
+      peersLabel.className = 'collab-peers-label';
+      peersLabel.textContent = 'Connected peers:';
+      content.appendChild(peersLabel);
+
+      const peerList = document.createElement('div');
+      peerList.className = 'collab-peer-list';
+
+      if (this.collabProvider) {
+        const states = this.collabProvider.awareness.getStates();
+        states.forEach((state, clientId) => {
+          if (state.user) {
+            const peerEl = document.createElement('div');
+            peerEl.className = 'collab-peer';
+            const isMe = clientId === this.collabDoc.clientID;
+            const dot = document.createElement('span');
+            dot.className = 'collab-peer-dot';
+            dot.style.backgroundColor = state.user.color;
+            peerEl.appendChild(dot);
+            peerEl.appendChild(document.createTextNode(state.user.name + (isMe ? ' (you)' : '')));
+            peerList.appendChild(peerEl);
+          }
+        });
+      }
+      content.appendChild(peerList);
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'collab-row';
+      nameRow.style.marginTop = '8px';
+      nameRow.innerHTML = '<label>Name:</label>';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'collab-input';
+      nameInput.value = this.collabUsername;
+      nameInput.addEventListener('change', () => this.saveCollabUsername(nameInput.value));
+      nameRow.appendChild(nameInput);
+      content.appendChild(nameRow);
+
+      const leaveBtn = document.createElement('button');
+      leaveBtn.className = 'collab-action-btn collab-leave-btn';
+      leaveBtn.textContent = 'Leave Session';
+      leaveBtn.addEventListener('click', () => this.leaveCollabSession());
+      content.appendChild(leaveBtn);
+    }
   }
 
   escapeHtml(str) {

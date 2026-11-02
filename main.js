@@ -375,6 +375,19 @@ function buildMenu() {
       ],
     },
     {
+      label: 'Collaborate',
+      submenu: [
+        {
+          label: 'Collab Panel',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-collab-panel');
+          },
+        },
+      ],
+    },
+    {
       label: 'Git',
       submenu: [
         {

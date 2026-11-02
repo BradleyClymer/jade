@@ -1135,3 +1135,142 @@ body.dragging-file::after {
 .table-buttons button:hover, .table-actions button:hover {
   background: var(--border-primary);
 }
+
+/* Collab panel */
+#collab-panel {
+  width: 260px;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+#collab-panel.collab-hidden { display: none; }
+#collab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+#collab-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+}
+#collab-content { padding: 10px; }
+.collab-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.collab-row label {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 40px;
+}
+.collab-input {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+.collab-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+.collab-action-btn {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  margin-top: 6px;
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+}
+.collab-action-btn:hover { opacity: 0.85; }
+.collab-leave-btn {
+  background: #8b3a3a;
+}
+.collab-room-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.collab-copy-btn {
+  background: var(--border-primary);
+  border: none;
+  border-radius: 3px;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.collab-copy-btn:hover { background: var(--accent-primary); color: #fff; }
+.collab-peers-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.collab-peer-list { margin-bottom: 8px; }
+.collab-peer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.collab-peer-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Remote cursor styles (y-codemirror.next) */
+.yRemoteSelection {
+  opacity: 0.3;
+}
+.yRemoteSelectionHead {
+  position: absolute;
+  border-left: 2px solid;
+  border-color: inherit;
+  height: 100%;
+}
+.yRemoteSelectionHead::after {
+  content: attr(data-name);
+  position: absolute;
+  top: -1.2em;
+  left: 0;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  color: #fff;
+  background: inherit;
+  background-color: inherit;
+}
