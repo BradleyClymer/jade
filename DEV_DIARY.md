@@ -49,6 +49,7 @@
 - Plugin system: JS plugins in `~/.jade/plugins/` auto-loaded at startup. Plugin API: registerCommand, registerPreviewTransform, insertText, getContent, setContent, getSelection, getFilePath, showNotification. Plugins menu to reload and open folder.
 - Multi-window: File > Move Tab to New Window opens the current tab's file in a separate Jade window
 - Collaborative editing (CRDT): real-time peer-to-peer collaboration via Yjs + y-webrtc. Collab panel (Ctrl+Shift+C or status bar): start a session to get a room code, share it so others can join. Remote cursors with colored selections and name labels. Yjs UndoManager for collaborative undo/redo. WebRTC P2P sync through public signaling servers (no server setup needed). Username persisted in localStorage.
+- Multi-language file support: open and edit 50+ programming languages with syntax highlighting. Auto-detects language from file extension via CodeMirror language-data (JS, TS, Python, Rust, Go, C/C++, Java, C#, Ruby, PHP, Swift, Kotlin, Scala, Haskell, Dart, Lua, Perl, R, PowerShell, Shell, SQL, HTML, CSS, SCSS, LESS, YAML, TOML, JSON, XML, Dockerfile, Makefile, GraphQL, Protobuf, and more). Preview pane shows syntax-highlighted source for code files. Status bar shows detected language. Open dialog organized by file category.
 
 ### Architecture
 
@@ -101,6 +102,20 @@
 - [x] Git integration (diff view, stage/unstage, commit from editor) -- 2026-10-30
 - [x] Multi-window support (move tab to new window) -- 2026-10-30
 - [x] Collaborative editing (CRDT via Yjs + y-webrtc + y-codemirror.next) -- 2026-11-02
+
+#### P4 -- Notepad++ parity
+- [x] Multi-language file support (50+ languages, auto-detect, syntax-highlighted preview) -- 2026-11-02
+- [ ] Line bookmarks (Ctrl+F2 toggle, F2 next, Shift+F2 prev)
+- [ ] Macro recording and playback
+- [ ] Column/block selection mode
+- [ ] Character encoding selector (UTF-8, ASCII, Latin-1, etc.)
+- [ ] Line ending selector (CRLF/LF/CR)
+- [ ] Go to line (Ctrl+G)
+- [ ] Document comparison / diff two tabs
+- [ ] Brace/bracket highlighting and matching navigation
+- [ ] Code folding for all languages
+- [ ] Auto-indent for code files
+- [ ] Session save/restore (reopen last set of tabs)
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
 
 ### Cross-platform notes

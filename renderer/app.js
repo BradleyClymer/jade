@@ -3,7 +3,7 @@ import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightAc
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap, HighlightStyle } from '@codemirror/language';
+import { syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap, HighlightStyle, LanguageDescription } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches, openSearchPanel, replaceAll } from '@codemirror/search';
 import { linter, lintGutter } from '@codemirror/lint';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -18,7 +18,7 @@ import mermaid from 'mermaid';
 import katex from 'katex';
 import hljs from 'highlight.js/lib/core';
 
-// Register common languages for code highlighting
+// Register languages for code highlighting (preview + fenced blocks)
 import javascript from 'highlight.js/lib/languages/javascript';
 import python from 'highlight.js/lib/languages/python';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -34,24 +34,58 @@ import sql from 'highlight.js/lib/languages/sql';
 import yaml from 'highlight.js/lib/languages/yaml';
 import markdown_hljs from 'highlight.js/lib/languages/markdown';
 import diff from 'highlight.js/lib/languages/diff';
+import csharp from 'highlight.js/lib/languages/csharp';
+import ruby from 'highlight.js/lib/languages/ruby';
+import php from 'highlight.js/lib/languages/php';
+import swift from 'highlight.js/lib/languages/swift';
+import kotlin from 'highlight.js/lib/languages/kotlin';
+import scala from 'highlight.js/lib/languages/scala';
+import r from 'highlight.js/lib/languages/r';
+import lua from 'highlight.js/lib/languages/lua';
+import perl from 'highlight.js/lib/languages/perl';
+import haskell from 'highlight.js/lib/languages/haskell';
+import dart from 'highlight.js/lib/languages/dart';
+import powershell from 'highlight.js/lib/languages/powershell';
+import dockerfile from 'highlight.js/lib/languages/dockerfile';
+import ini from 'highlight.js/lib/languages/ini';
+import scss from 'highlight.js/lib/languages/scss';
+import less from 'highlight.js/lib/languages/less';
+import graphql from 'highlight.js/lib/languages/graphql';
+import protobuf from 'highlight.js/lib/languages/protobuf';
+import makefile from 'highlight.js/lib/languages/makefile';
+import nginx from 'highlight.js/lib/languages/nginx';
+import plaintext from 'highlight.js/lib/languages/plaintext';
 
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('mjs', javascript);
+hljs.registerLanguage('cjs', javascript);
+hljs.registerLanguage('jsx', javascript);
 hljs.registerLanguage('python', python);
 hljs.registerLanguage('py', python);
 hljs.registerLanguage('typescript', typescript);
 hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('mts', typescript);
+hljs.registerLanguage('tsx', typescript);
 hljs.registerLanguage('css', css);
 hljs.registerLanguage('html', xml);
+hljs.registerLanguage('htm', xml);
 hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('svg', xml);
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('shell', bash);
 hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('zsh', bash);
 hljs.registerLanguage('cpp', cpp);
 hljs.registerLanguage('c', cpp);
+hljs.registerLanguage('h', cpp);
+hljs.registerLanguage('hpp', cpp);
+hljs.registerLanguage('cc', cpp);
+hljs.registerLanguage('cxx', cpp);
 hljs.registerLanguage('java', java);
 hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('rs', rust);
 hljs.registerLanguage('go', go);
 hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('yaml', yaml);
@@ -59,6 +93,43 @@ hljs.registerLanguage('yml', yaml);
 hljs.registerLanguage('markdown', markdown_hljs);
 hljs.registerLanguage('md', markdown_hljs);
 hljs.registerLanguage('diff', diff);
+hljs.registerLanguage('patch', diff);
+hljs.registerLanguage('csharp', csharp);
+hljs.registerLanguage('cs', csharp);
+hljs.registerLanguage('ruby', ruby);
+hljs.registerLanguage('rb', ruby);
+hljs.registerLanguage('php', php);
+hljs.registerLanguage('swift', swift);
+hljs.registerLanguage('kotlin', kotlin);
+hljs.registerLanguage('kt', kotlin);
+hljs.registerLanguage('scala', scala);
+hljs.registerLanguage('r', r);
+hljs.registerLanguage('lua', lua);
+hljs.registerLanguage('perl', perl);
+hljs.registerLanguage('pl', perl);
+hljs.registerLanguage('haskell', haskell);
+hljs.registerLanguage('hs', haskell);
+hljs.registerLanguage('dart', dart);
+hljs.registerLanguage('powershell', powershell);
+hljs.registerLanguage('ps1', powershell);
+hljs.registerLanguage('psm1', powershell);
+hljs.registerLanguage('dockerfile', dockerfile);
+hljs.registerLanguage('ini', ini);
+hljs.registerLanguage('conf', ini);
+hljs.registerLanguage('cfg', ini);
+hljs.registerLanguage('properties', ini);
+hljs.registerLanguage('toml', ini);
+hljs.registerLanguage('scss', scss);
+hljs.registerLanguage('less', less);
+hljs.registerLanguage('graphql', graphql);
+hljs.registerLanguage('protobuf', protobuf);
+hljs.registerLanguage('proto', protobuf);
+hljs.registerLanguage('makefile', makefile);
+hljs.registerLanguage('nginx', nginx);
+hljs.registerLanguage('plaintext', plaintext);
+hljs.registerLanguage('txt', plaintext);
+hljs.registerLanguage('text', plaintext);
+hljs.registerLanguage('log', plaintext);
 
 // Mermaid config
 mermaid.initialize({
@@ -231,6 +302,10 @@ function lintMarkdown(view) {
 }
 
 // Tab state
+const MARKDOWN_EXTS = /\.(md|markdown|mkd|mdown|mdwn|mdx)$/i;
+const LATEX_EXTS = /\.(tex|ltx|sty|cls|bib)$/i;
+const PLAIN_TEXT_EXTS = /\.(txt|text|log|cfg|conf|ini|env|gitignore|gitattributes|editorconfig|npmrc|dockerignore)$/i;
+
 class Tab {
   constructor(filePath = null, content = '') {
     this.filePath = filePath;
@@ -241,7 +316,25 @@ class Tab {
   }
 
   get isLatex() {
-    return this.filePath && /\.tex$/i.test(this.filePath);
+    return this.filePath && LATEX_EXTS.test(this.filePath);
+  }
+
+  get isMarkdown() {
+    return !this.filePath || MARKDOWN_EXTS.test(this.filePath);
+  }
+
+  get isPlainText() {
+    return this.filePath && PLAIN_TEXT_EXTS.test(this.filePath);
+  }
+
+  get isCode() {
+    return this.filePath && !this.isMarkdown && !this.isLatex && !this.isPlainText;
+  }
+
+  get fileExtension() {
+    if (!this.filePath) return '';
+    const m = this.filePath.match(/\.([^.\\/]+)$/);
+    return m ? m[1].toLowerCase() : '';
   }
 
   get name() {
@@ -1110,10 +1203,28 @@ class JadeApp {
     if (this._wysiwygActive) return;
     const tab = this.tabs[this.activeTabIndex];
     const content = this.editor.state.doc.toString();
+
     if (tab && tab.isLatex) {
       this.previewContent.innerHTML = this.renderLatexPreview(content);
       return;
     }
+
+    if (tab && (tab.isCode || tab.isPlainText)) {
+      const ext = tab.fileExtension;
+      let highlighted;
+      if (ext && hljs.getLanguage(ext)) {
+        try {
+          highlighted = hljs.highlight(content, { language: ext }).value;
+        } catch (_) {
+          highlighted = this.escapeHtml(content);
+        }
+      } else {
+        highlighted = this.escapeHtml(content);
+      }
+      this.previewContent.innerHTML = `<pre class="code-preview"><code>${highlighted}</code></pre>`;
+      return;
+    }
+
     mermaidCounter = 0;
     let html = md.render(content);
     if (this._pluginPreviewTransforms) {
@@ -1181,6 +1292,7 @@ class JadeApp {
     if (!tab) return;
     this.statusFile.textContent = tab.filePath || 'Untitled';
     this.updateCursorStatus();
+    this.updateLangStatus();
   }
 
   updateCursorStatus() {
@@ -1261,17 +1373,50 @@ class JadeApp {
     try { localStorage.setItem('jade-pdf-pagesize', size); } catch (_) {}
   }
 
-  // Language mode switching (markdown vs LaTeX)
-  syncLanguageMode(tab) {
+  // Language mode switching
+  async syncLanguageMode(tab) {
     if (!tab) return;
-    const isLatex = tab.isLatex;
+    let langExt;
+    this._currentLangName = 'Markdown';
+
+    if (tab.isMarkdown) {
+      langExt = markdown({ base: markdownLanguage, codeLanguages: languages });
+      this._currentLangName = 'Markdown';
+    } else if (tab.isLatex) {
+      langExt = latexLang();
+      this._currentLangName = 'LaTeX';
+    } else if (tab.filePath) {
+      const filename = tab.name;
+      const desc = LanguageDescription.matchFilename(languages, filename);
+      if (desc) {
+        this._currentLangName = desc.name;
+        try {
+          const support = await desc.load();
+          langExt = support;
+        } catch (_) {
+          langExt = [];
+          this._currentLangName = 'Plain Text';
+        }
+      } else {
+        langExt = [];
+        this._currentLangName = 'Plain Text';
+      }
+    } else {
+      langExt = markdown({ base: markdownLanguage, codeLanguages: languages });
+    }
+
     try {
       this.editor.dispatch({
-        effects: this.langCompartment.reconfigure(
-          isLatex ? latexLang() : markdown({ base: markdownLanguage, codeLanguages: languages })
-        )
+        effects: this.langCompartment.reconfigure(langExt)
       });
     } catch (_) {}
+
+    this.updateLangStatus();
+  }
+
+  updateLangStatus() {
+    const el = document.getElementById('status-lang');
+    if (el) el.textContent = this._currentLangName || 'Markdown';
   }
 
   // LaTeX preview renderer

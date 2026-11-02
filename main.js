@@ -71,8 +71,13 @@ function buildMenu() {
             const { canceled, filePaths } = await dialog.showOpenDialog(win, {
               properties: ['openFile'],
               filters: [
-                { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] },
-                { name: 'LaTeX', extensions: ['tex', 'sty', 'cls', 'bib'] },
+                { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mdx'] },
+                { name: 'LaTeX', extensions: ['tex', 'ltx', 'sty', 'cls', 'bib'] },
+                { name: 'Web', extensions: ['html', 'htm', 'css', 'scss', 'less', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'mts', 'tsx', 'vue', 'json', 'xml', 'svg', 'yaml', 'yml', 'toml'] },
+                { name: 'Programming', extensions: ['py', 'rb', 'go', 'rs', 'java', 'kt', 'c', 'cpp', 'h', 'hpp', 'cs', 'swift', 'dart', 'lua', 'php', 'r', 'jl', 'scala', 'hs', 'elm', 'erl', 'ex', 'exs', 'clj', 'cljs'] },
+                { name: 'Shell/Config', extensions: ['sh', 'bash', 'zsh', 'ps1', 'bat', 'cmd', 'ini', 'cfg', 'conf', 'env', 'properties', 'dockerfile'] },
+                { name: 'Data', extensions: ['sql', 'csv', 'tsv', 'graphql', 'proto'] },
+                { name: 'Plain Text', extensions: ['txt', 'text', 'log'] },
                 { name: 'All Files', extensions: ['*'] },
               ],
             });
@@ -668,8 +673,9 @@ app.on('open-file', (event, filePath) => {
 function getFileFromArgs(argv) {
   const args = argv.slice(app.isPackaged ? 1 : 2);
   for (const arg of args) {
-    if (!arg.startsWith('-') && (arg.endsWith('.md') || arg.endsWith('.markdown') || arg.endsWith('.txt') || arg.endsWith('.tex'))) {
-      if (fs.existsSync(arg)) return path.resolve(arg);
+    if (!arg.startsWith('-') && /\.\w+$/.test(arg)) {
+      const resolved = path.resolve(arg);
+      if (fs.existsSync(resolved)) return resolved;
     }
   }
   return null;
