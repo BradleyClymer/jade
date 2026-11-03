@@ -1,6 +1,6 @@
 {
   "name": "jade-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A lightweight Markdown editor with live preview",
   "main": "main.js",
   "scripts": {
@@ -123,7 +123,10 @@
     "type": "git",
     "url": "https://github.com/BradleyClymer/jade"
   },
-  "author": "Bradley Clymer",
+  "author": {
+    "name": "Bradley Clymer",
+    "email": "brad.clymer@gmail.com"
+  },
   "license": "MIT",
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
