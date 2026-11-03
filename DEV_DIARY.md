@@ -1,5 +1,29 @@
 # Jade Development Diary
 
+## 2026-11-02/03 -- P3-P4 feature sweep, CI/CD, history rewrite
+
+### Done
+
+- **CRDT collaborative editing** (P3 final item): Yjs Y.Doc + y-webrtc + y-codemirror.next. Room codes, remote cursors with colored name labels, collab panel (start/join/leave), toggled via CM6 Compartment. P2P via public signaling servers, zero server setup.
+- **Multi-language file support**: rewrote `syncLanguageMode()` to use `LanguageDescription.matchFilename()` from `@codemirror/language-data` for 50+ languages with on-demand grammar loading. Preview pane shows syntax-highlighted source for code files.
+- **P4 Notepad++ parity**: go-to-line (Ctrl+G), line bookmarks (Ctrl+F2/F2/Shift+F2), macro recording/playback (dedicated `macroCompartment`), line ending detection/toggle, encoding cycle, tab diff (side-by-side), session save/restore (localStorage, 30s interval + beforeunload).
+- **CI/CD**: `.github/workflows/ci.yml` (lint, npm audit, build matrix for win/mac/linux) and `release.yml` (tag-triggered `electron-builder --publish always`).
+- **Security**: CSP headers via `session.defaultSession.webRequest.onHeadersReceived`.
+- **History rewrite**: `git filter-branch` stripped all `Claude-Session:` URLs from commit messages; force-pushed clean history.
+
+### Learned
+
+- `LanguageDescription` must be imported from `@codemirror/language`, not `@codemirror/language-data` (esbuild "no matching export" error).
+- Macro recording needs its own CM6 Compartment; dispatching into `lintCompartment` would silently break linting.
+- electron-builder `publish: { provider: "github" }` + `GH_TOKEN` env var is the standard path for GitHub Releases binaries.
+
+### Next steps
+
+- Tag `v0.2.0` and push to trigger the release workflow (the one remaining unchecked item).
+- P1 LLM interaction panel is the last unchecked feature from the original roadmap.
+- Test the CRDT collab with two actual Jade instances on different machines.
+- Consider adding user-configurable signaling servers for CRDT (currently hardcoded public servers).
+
 ## 2026-10-29 09:17 EDT -- v0.1.0 initial build
 
 ### Done
