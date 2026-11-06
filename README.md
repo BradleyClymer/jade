@@ -49,7 +49,7 @@ To build a Windows installer and portable exe:
 npm run dist:win
 ```
 
-Output lands in `release/`. You get both `Jade-Setup-0.1.0.exe` (NSIS installer) and `Jade-0.1.0.exe` (portable).
+Output lands in `release/`. You get both `Jade-Setup-x.y.z.exe` (NSIS installer) and `Jade-x.y.z.exe` (portable), where the version comes from `package.json`.
 
 ### Ubuntu / Debian
 

@@ -482,7 +482,7 @@ function buildMenu() {
               type: 'info',
               title: 'About Jade',
               message: 'Jade Markdown Editor',
-              detail: 'Version 0.1.0\nA lightweight Markdown editor with live preview.\nNo vaults. No bloat. Just Markdown.',
+              detail: `Version ${app.getVersion()}\nA lightweight Markdown editor with live preview.\nNo vaults. No bloat. Just Markdown.`,
             });
           },
         },
