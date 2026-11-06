@@ -2,7 +2,7 @@
 
 A lightweight Markdown editor with live preview. No vaults. No bloat. Just Markdown.
 
-![Jade screenshot](assets/screenshot.png)
+![Jade screenshot](https://raw.githubusercontent.com/BradleyClymer/jade/master/assets/screenshot.png)
 
 ## Features
 
