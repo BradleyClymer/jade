@@ -358,7 +358,7 @@ class JadeApp {
     this.editor = null;
     this.extensions = null;
     this.zoomLevel = 0;
-    this.viewMode = 'split';
+    this.viewMode = this.loadViewMode();
     this.updateTimer = null;
     this.scrollLocked = true;
     this.vimEnabled = false;
@@ -406,6 +406,7 @@ class JadeApp {
 
     this.initEditor();
     this.initLayout();
+    if (this.viewMode !== 'split') this.setViewMode(this.viewMode);
     this.initDivider();
     this.initDragDrop();
     this.initSyncScroll();
@@ -774,7 +775,13 @@ class JadeApp {
     workspace.style.cssText = `position:relative;height:calc(100vh - 36px - 24px);overflow:hidden;`;
 
     applyLayout();
-    window.addEventListener('resize', applyLayout);
+    window.addEventListener('resize', () => {
+      if (this.viewMode === 'split') {
+        applyLayout();
+      } else {
+        this.setViewMode(this.viewMode);
+      }
+    });
     this._applyLayout = applyLayout;
   }
 
@@ -1084,12 +1091,20 @@ class JadeApp {
       }
     }
 
-    this.tabs.splice(index, 1);
-
-    if (this.tabs.length === 0) {
-      this.newTab();
+    // If this is the last tab, replace it with a blank one
+    if (this.tabs.length === 1) {
+      this.tabs[0] = new Tab(null, '');
+      this.tabs[0].editorState = this.createState('');
+      this.activeTabIndex = 0;
+      this.editor.setState(this.tabs[0].editorState);
+      this.renderTabs();
+      this.updatePreview();
+      this.updateStatusBar();
+      this.updateWindowTitle();
       return;
     }
+
+    this.tabs.splice(index, 1);
 
     if (this.activeTabIndex >= this.tabs.length) {
       this.activeTabIndex = this.tabs.length - 1;
@@ -1282,24 +1297,38 @@ class JadeApp {
     this.setViewMode(modes[(current + 1) % modes.length]);
   }
 
+  loadViewMode() {
+    try { return localStorage.getItem('jade-view-mode') || 'split'; } catch { return 'split'; }
+  }
+
   setViewMode(mode) {
     document.body.classList.remove('view-editor', 'view-preview', 'view-split');
     if (mode !== 'split') {
       document.body.classList.add('view-' + mode);
     }
     this.viewMode = mode;
+    try { localStorage.setItem('jade-view-mode', mode); } catch {}
 
     const editor = document.getElementById('editor-pane');
     const preview = document.getElementById('preview-pane');
+    const divider = document.getElementById('divider');
     const workspace = document.getElementById('workspace');
     const totalW = workspace.offsetWidth;
 
     if (mode === 'editor') {
       editor.style.width = totalW + 'px';
+      divider.style.display = 'none';
+      preview.style.display = 'none';
     } else if (mode === 'preview') {
+      editor.style.display = 'none';
+      divider.style.display = 'none';
       preview.style.left = '0px';
       preview.style.width = totalW + 'px';
+      preview.style.display = '';
     } else {
+      editor.style.display = '';
+      divider.style.display = '';
+      preview.style.display = '';
       if (this._applyLayout) this._applyLayout();
     }
 

@@ -148,8 +148,19 @@
 - [x] Character encoding selector (UTF-8, ASCII, Latin-1, UTF-16 LE) -- 2026-11-02
 - [x] Document comparison / diff two tabs -- 2026-11-02
 - [x] Column/block selection mode (Alt+Shift+drag, already via CM6 rectangularSelection) -- 2026-11-02
-- [ ] Published binaries on GitHub Releases (tag v0.2.0)
+- [x] Published binaries on GitHub Releases (tag v0.2.0) -- 2026-11-03
 - [x] Markdown table editor (visual grid, tab between cells) -- 2026-10-30
+
+#### P4.5 -- bug fixes
+- [x] Sticky view mode: persists editor/preview/split across resize and restart -- 2026-11-16
+- [x] Close last tab replaces with blank session instead of no-op -- 2026-11-16
+- [x] Version single-sourced from package.json (app.getVersion()) -- 2026-11-06
+
+#### P5 -- future
+- [ ] LLM interaction panel (select text, send to LLM for rewrite/summarize/expand/ask)
+- [ ] CAC/smart card PDF signing (pkcs11js for PKCS#11 hardware access, node-signpdf for PDF signature containers; spike needed to validate Electron native addon compatibility)
+- [ ] Visual signature placement on PDF (drag-to-place after spike proves out)
+- [ ] Signature verification for incoming PDFs
 
 ### Cross-platform notes
 
