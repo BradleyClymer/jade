@@ -622,6 +622,55 @@ class JadeApp {
         this.editor.focus();
       }
     });
+
+    // Scope Ctrl+A to the active pane instead of selecting the whole window
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'a' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        const active = document.activeElement;
+        const inEditor = active && (active.closest('.cm-editor') || active.classList.contains('cm-content'));
+        if (inEditor) return; // CM6 handles its own Ctrl+A
+        const inPreview = active && (active.closest('#preview-pane') || active === this.previewContent);
+        if (inPreview) {
+          e.preventDefault();
+          const range = document.createRange();
+          range.selectNodeContents(this.previewContent);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else {
+          // Focus not in either pane — direct to editor
+          e.preventDefault();
+          this.editor.focus();
+          this.editor.dispatch({ selection: { anchor: 0, head: this.editor.state.doc.length } });
+        }
+      }
+    });
+
+    // Copy from preview: strip jade styling, keep semantic formatting
+    this.previewContent.addEventListener('copy', (e) => {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const fragment = range.cloneContents();
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(fragment);
+      this._stripJadeStyles(wrapper);
+      e.clipboardData.setData('text/html', wrapper.innerHTML);
+      e.clipboardData.setData('text/plain', sel.toString());
+      e.preventDefault();
+    });
+  }
+
+  _stripJadeStyles(el) {
+    el.querySelectorAll('*').forEach(node => {
+      node.removeAttribute('style');
+      node.removeAttribute('class');
+    });
+    el.querySelectorAll('pre code').forEach(block => {
+      block.querySelectorAll('span').forEach(span => {
+        span.replaceWith(...span.childNodes);
+      });
+    });
   }
 
   syncPreviewToEditor() {
