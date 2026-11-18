@@ -155,6 +155,8 @@
 - [x] Sticky view mode: persists editor/preview/split across resize and restart -- 2026-11-16
 - [x] Close last tab replaces with blank session instead of no-op -- 2026-11-16
 - [x] Version single-sourced from package.json (app.getVersion()) -- 2026-11-06
+- [x] Data loss on tab close: closing the active tab handed its document to the next tab (switchToTab saved editor state by index after closeTab had shifted the array), and auto-save then overwrote that tab's file. Editor state is now tied to the Tab object it belongs to (editorTab). Regression test: `npm test` (test/tab-close.js) -- 2026-11-18
+- [x] Linux: force GTK3 (Electron 36 loads GTK4 at runtime while linking GTK3, aborting with "GTK 2/3 symbols detected") -- 2026-11-18
 
 #### P5 -- future
 - [ ] LLM interaction panel (select text, send to LLM for rewrite/summarize/expand/ask)
