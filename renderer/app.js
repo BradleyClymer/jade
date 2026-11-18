@@ -355,6 +355,10 @@ class JadeApp {
   constructor() {
     this.tabs = [];
     this.activeTabIndex = -1;
+    // The Tab whose document is currently loaded in the editor view. Editor state
+    // is copied back only to this tab, never to "whatever is at activeTabIndex",
+    // because closeTab() shifts indices before the view is updated.
+    this.editorTab = null;
     this.editor = null;
     this.extensions = null;
     this.zoomLevel = 0;
@@ -1066,7 +1070,7 @@ class JadeApp {
     for (let i = 0; i < this.tabs.length; i++) {
       const tab = this.tabs[i];
       if (!tab.filePath) continue;
-      if (i === this.activeTabIndex) tab.editorState = this.editor.state;
+      if (tab === this.editorTab) tab.editorState = this.editor.state;
       const content = tab.editorState ? tab.editorState.doc.toString() : '';
       if (content !== tab.savedContent) {
         const result = await window.jade.writeFile(tab.filePath, content);
@@ -1089,13 +1093,27 @@ class JadeApp {
     this.updatePreview();
   }
 
+  // Load a tab's document into the editor view and remember that it is the one shown.
+  showTab(tab) {
+    this.editor.setState(tab.editorState || this.createState(tab.savedContent));
+    this.editorTab = tab;
+  }
+
+  // Copy the editor view's state back to the tab it belongs to. Returns that tab,
+  // or null if the editor is empty or its tab has been closed.
+  syncEditorTab() {
+    const tab = this.editorTab;
+    if (!tab || !this.tabs.includes(tab)) return null;
+    tab.editorState = this.editor.state;
+    return tab;
+  }
+
   switchToTab(index) {
     if (index < 0 || index >= this.tabs.length) return;
 
-    // Save current tab state
-    if (this.activeTabIndex >= 0 && this.activeTabIndex < this.tabs.length) {
-      const current = this.tabs[this.activeTabIndex];
-      current.editorState = this.editor.state;
+    // Save the state of the tab the editor is actually showing
+    const current = this.syncEditorTab();
+    if (current) {
       current.scrollTop = this.editor.scrollDOM.scrollTop;
       current.previewScrollTop = this.previewContent.scrollTop;
     }
@@ -1104,7 +1122,7 @@ class JadeApp {
     const tab = this.tabs[index];
 
     // Restore tab state
-    this.editor.setState(tab.editorState || this.createState(tab.savedContent));
+    this.showTab(tab);
     this.syncLanguageMode(tab);
 
     requestAnimationFrame(() => {
@@ -1124,8 +1142,8 @@ class JadeApp {
     if (index < 0 || index >= this.tabs.length) return;
     const tab = this.tabs[index];
 
-    // Sync state if it's the active tab
-    if (index === this.activeTabIndex) {
+    // Sync state if the editor is showing this tab
+    if (tab === this.editorTab) {
       tab.editorState = this.editor.state;
     }
 
@@ -1145,7 +1163,7 @@ class JadeApp {
       this.tabs[0] = new Tab(null, '');
       this.tabs[0].editorState = this.createState('');
       this.activeTabIndex = 0;
-      this.editor.setState(this.tabs[0].editorState);
+      this.showTab(this.tabs[0]);
       this.renderTabs();
       this.updatePreview();
       this.updateStatusBar();
@@ -1154,6 +1172,7 @@ class JadeApp {
     }
 
     this.tabs.splice(index, 1);
+    if (tab === this.editorTab) this.editorTab = null; // its document must not be saved into a neighbour
 
     if (this.activeTabIndex >= this.tabs.length) {
       this.activeTabIndex = this.tabs.length - 1;
@@ -1190,9 +1209,7 @@ class JadeApp {
   }
 
   updateTabModified() {
-    if (this.activeTabIndex < 0) return;
-    const tab = this.tabs[this.activeTabIndex];
-    tab.editorState = this.editor.state;
+    if (!this.syncEditorTab()) return;
     this.renderTabs();
   }
 
@@ -1220,6 +1237,7 @@ class JadeApp {
       currentTab.savedContent = result.content;
       const newState = this.createState(result.content);
       this.editor.setState(newState);
+      this.editorTab = currentTab;
       currentTab.editorState = this.editor.state;
       this.syncLanguageMode(currentTab);
       this.renderTabs();
@@ -1244,8 +1262,8 @@ class JadeApp {
     if (index < 0 || index >= this.tabs.length) return false;
     const tab = this.tabs[index];
 
-    // Sync state if active
-    if (index === this.activeTabIndex) {
+    // Sync state if the editor is showing this tab
+    if (tab === this.editorTab) {
       tab.editorState = this.editor.state;
     }
 
@@ -1272,7 +1290,7 @@ class JadeApp {
     if (index < 0 || index >= this.tabs.length) return false;
     const tab = this.tabs[index];
 
-    if (index === this.activeTabIndex) {
+    if (tab === this.editorTab) {
       tab.editorState = this.editor.state;
     }
 
@@ -2702,8 +2720,8 @@ class JadeApp {
       const idxB = parseInt(selB.value, 10);
       const tabA = this.tabs[idxA];
       const tabB = this.tabs[idxB];
-      const contentA = idxA === this.activeTabIndex ? this.editor.state.doc.toString() : (tabA.editorState ? tabA.editorState.doc.toString() : tabA.savedContent);
-      const contentB = idxB === this.activeTabIndex ? this.editor.state.doc.toString() : (tabB.editorState ? tabB.editorState.doc.toString() : tabB.savedContent);
+      const contentA = tabA === this.editorTab ? this.editor.state.doc.toString() : (tabA.editorState ? tabA.editorState.doc.toString() : tabA.savedContent);
+      const contentB = tabB === this.editorTab ? this.editor.state.doc.toString() : (tabB.editorState ? tabB.editorState.doc.toString() : tabB.savedContent);
       overlay.remove();
       this.showTabDiff(tabA.name, contentA, tabB.name, contentB);
     });

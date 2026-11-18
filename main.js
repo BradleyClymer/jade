@@ -3,6 +3,13 @@ const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
+// Electron 36+ defaults to GTK4 on Linux. Some distros then load GTK3 symbols
+// into the same process (e.g. via file-chooser portals or input-method modules),
+// which aborts with "GTK 2/3 symbols detected". Force GTK3 until that settles.
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('gtk-version', '3');
+}
+
 let windows = [];
 let recentFiles = [];
 
