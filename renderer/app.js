@@ -156,11 +156,12 @@ let mermaidCounter = 0;
 const md = new MarkdownIt({
   html: true,
   linkify: true,
-  typographer: true,
+  typographer: false,
   highlight: (str, lang) => {
     if (lang === 'mermaid') {
       const id = `mermaid-${mermaidCounter++}`;
-      return `</code></pre><pre class="mermaid" id="${id}">${str}</pre><pre class="hidden"><code>`;
+      const escaped = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `</code></pre><pre class="mermaid" id="${id}" data-mermaid-source="${encodeURIComponent(str)}">${escaped}</pre><pre class="hidden"><code>`;
     }
     if (lang && hljs.getLanguage(lang)) {
       try {
@@ -608,21 +609,33 @@ class JadeApp {
     this.previewContent.setAttribute('contenteditable', 'true');
     this.previewContent.setAttribute('spellcheck', 'true');
     this._wysiwygActive = false;
+    this._wysiwygDirty = false;
 
     this.previewContent.addEventListener('focus', () => {
       this._wysiwygActive = true;
+      this._wysiwygDirty = false;
+    });
+
+    this.previewContent.addEventListener('input', () => {
+      this._wysiwygDirty = true;
     });
 
     this.previewContent.addEventListener('blur', () => {
       if (!this._wysiwygActive) return;
       this._wysiwygActive = false;
-      this.syncPreviewToEditor();
+      if (this._wysiwygDirty) {
+        this.syncPreviewToEditor();
+        this._wysiwygDirty = false;
+      }
     });
 
     this.previewContent.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this._wysiwygActive = false;
-        this.syncPreviewToEditor();
+        if (this._wysiwygDirty) {
+          this.syncPreviewToEditor();
+          this._wysiwygDirty = false;
+        }
         this.editor.focus();
       }
     });
@@ -701,8 +714,13 @@ class JadeApp {
         result += child.textContent;
         continue;
       }
+      if (child.nodeType === 8) {
+        result += `<!--${child.data}-->`;
+        continue;
+      }
       if (child.nodeType !== 1) continue;
       const tag = child.tagName.toLowerCase();
+      if (child.classList && child.classList.contains('hidden')) continue;
       const inner = this.nodeToMd(child);
       switch (tag) {
         case 'h1': result += `# ${inner}\n\n`; break;
@@ -725,7 +743,11 @@ class JadeApp {
           break;
         case 'pre':
           if (child.classList.contains('mermaid')) {
-            result += `\`\`\`mermaid\n${child.textContent}\n\`\`\`\n\n`;
+            const src = child.getAttribute('data-mermaid-source');
+            const body = src ? decodeURIComponent(src) : child.textContent;
+            result += `\`\`\`mermaid\n${body}\n\`\`\`\n\n`;
+          } else if (child.textContent.trim() === '') {
+            break;
           } else {
             const codeEl = child.querySelector('code');
             const lang = codeEl ? (codeEl.className.match(/language-(\w+)/) || [])[1] || '' : '';
