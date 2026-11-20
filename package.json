@@ -1,11 +1,11 @@
 {
   "name": "jade-editor",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A lightweight Markdown editor with live preview",
   "main": "main.js",
   "scripts": {
     "build": "node build.js",
-    "test": "node build.js && electron test/tab-close.js && electron test/round-trip.js",
+    "test": "node build.js && electron test/tab-close.js && electron test/round-trip.js && electron test/ext-edit.js",
     "start": "node build.js && electron .",
     "dev": "node build.js && electron .",
     "dist": "node build.js && electron-builder",
@@ -28,6 +28,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "merge-preload.js",
       "renderer/**/*",
       "dist/bundle.js",
       "dist/bundle.js.map",

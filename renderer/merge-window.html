@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Merge</title>
+<style>
+  :root {
+    --bg-primary: #1a2e1a;
+    --bg-secondary: #243024;
+    --bg-deep: #0f1f0f;
+    --text-primary: #d4e8d4;
+    --text-muted: #7a9a7a;
+    --text-accent: #80c080;
+    --border-primary: #2a4a2a;
+    --font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+  }
+  #header {
+    padding: 10px 16px;
+    background: var(--bg-deep);
+    border-bottom: 1px solid var(--border-primary);
+    flex-shrink: 0;
+  }
+  #header h2 {
+    color: var(--text-accent);
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .actions button {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    padding: 5px 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .actions button:hover { background: var(--border-primary); }
+  .accept-disk-btn { border-color: #4caf50 !important; color: #4caf50 !important; }
+  .keep-session-btn { border-color: #2196f3 !important; color: #2196f3 !important; }
+  .apply-btn { border-color: #ff9800 !important; color: #ff9800 !important; }
+  #diff-area {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+    padding: 0 8px 8px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .col-header td {
+    padding: 4px 8px;
+    font-weight: bold;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-family: inherit;
+    border-bottom: 1px solid var(--border-primary);
+  }
+  td { padding: 1px 8px; white-space: pre-wrap; word-break: break-all; vertical-align: top; }
+  .num { width: 36px; text-align: right; padding-right: 6px; color: var(--text-muted); border-right: 1px solid var(--border-primary); user-select: none; }
+  .sep { width: 1px; background: var(--border-primary); padding: 0; }
+  .hunk-header td {
+    background: rgba(100, 181, 246, 0.15);
+    color: #64b5f6;
+    font-weight: bold;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .hunk-actions { float: right; display: flex; gap: 6px; }
+  .hunk-actions button {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 3px;
+    padding: 1px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-family: inherit;
+  }
+  .hunk-actions button:hover { background: var(--border-primary); }
+  .hunk-actions .accept { color: #4caf50; border-color: #4caf50; }
+  .hunk-actions .reject { color: #f44336; border-color: #f44336; }
+  .del-cell { background: rgba(244, 67, 54, 0.12); }
+  .add-cell { background: rgba(76, 175, 80, 0.12); }
+  tbody.hunk-accepted .hunk-header td { background: rgba(76, 175, 80, 0.2); }
+  tbody.hunk-rejected .hunk-header td { background: rgba(244, 67, 54, 0.2); }
+  #status {
+    padding: 4px 16px;
+    background: var(--bg-deep);
+    border-top: 1px solid var(--border-primary);
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<div id="header">
+  <h2 id="title">External changes</h2>
+  <div class="actions">
+    <button class="accept-disk-btn" id="accept-all">Accept all disk changes</button>
+    <button class="keep-session-btn" id="keep-session">Keep session content</button>
+    <button class="apply-btn" id="apply-hunks" style="display:none">Apply selected hunks</button>
+    <button id="close-btn">Close (Esc)</button>
+  </div>
+</div>
+<div id="diff-area"><table id="diff-table"></table></div>
+<div id="status" id="status">Esc to close</div>
+<script>
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  let mergeData = null;
+  let hunkCount = 0;
+
+  window.merge.onData((data) => {
+    mergeData = data;
+    document.getElementById('title').textContent = 'External changes: ' + data.fileName;
+    renderDiff(data.hunks);
+  });
+
+  function renderDiff(hunks) {
+    const table = document.getElementById('diff-table');
+    table.innerHTML = '';
+
+    const colHeader = document.createElement('tr');
+    colHeader.className = 'col-header';
+    colHeader.innerHTML = '<td class="num"></td><td style="width:50%">Session (yours)</td><td class="sep"></td><td class="num"></td><td style="width:50%">Disk (external)</td>';
+    table.appendChild(colHeader);
+
+    hunkCount = 0;
+    for (const hunk of hunks) {
+      if (hunk.type === 'context') {
+        for (let i = 0; i < hunk.lines.length; i++) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td class="num">' + (hunk.startA + i + 1) + '</td><td>' + escapeHtml(hunk.lines[i]) + '</td><td class="sep"></td><td class="num">' + (hunk.startB + i + 1) + '</td><td>' + escapeHtml(hunk.lines[i]) + '</td>';
+          table.appendChild(tr);
+        }
+      } else {
+        hunkCount++;
+        const tbody = document.createElement('tbody');
+        const headerRow = document.createElement('tr');
+        headerRow.className = 'hunk-header';
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        const actions = document.createElement('span');
+        actions.className = 'hunk-actions';
+        const acceptBtn = document.createElement('button');
+        acceptBtn.className = 'accept';
+        acceptBtn.textContent = 'Accept disk';
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'reject';
+        rejectBtn.textContent = 'Keep session';
+        actions.appendChild(acceptBtn);
+        actions.appendChild(rejectBtn);
+        td.appendChild(document.createTextNode('@@ change @@'));
+        td.appendChild(actions);
+        headerRow.appendChild(td);
+        tbody.appendChild(headerRow);
+
+        const maxRows = Math.max(hunk.delLines.length, hunk.addLines.length);
+        for (let i = 0; i < maxRows; i++) {
+          const tr = document.createElement('tr');
+          const hasDel = i < hunk.delLines.length;
+          const hasAdd = i < hunk.addLines.length;
+          const numA = hasDel ? String(hunk.startA + i + 1) : '';
+          const numB = hasAdd ? String(hunk.startB + i + 1) : '';
+          const textA = hasDel ? escapeHtml(hunk.delLines[i]) : '';
+          const textB = hasAdd ? escapeHtml(hunk.addLines[i]) : '';
+          tr.innerHTML = '<td class="num">' + numA + '</td><td class="' + (hasDel ? 'del-cell' : '') + '">' + textA + '</td><td class="sep"></td><td class="num">' + numB + '</td><td class="' + (hasAdd ? 'add-cell' : '') + '">' + textB + '</td>';
+          tbody.appendChild(tr);
+        }
+
+        acceptBtn.addEventListener('click', () => {
+          tbody.classList.remove('hunk-rejected');
+          tbody.classList.add('hunk-accepted');
+          updateApplyButton();
+        });
+        rejectBtn.addEventListener('click', () => {
+          tbody.classList.remove('hunk-accepted');
+          tbody.classList.add('hunk-rejected');
+          updateApplyButton();
+        });
+
+        table.appendChild(tbody);
+      }
+    }
+    if (hunkCount > 1) document.getElementById('apply-hunks').style.display = '';
+  }
+
+  function updateApplyButton() {
+    const decided = document.querySelectorAll('tbody.hunk-accepted, tbody.hunk-rejected').length;
+    document.getElementById('status').textContent = decided + ' of ' + hunkCount + ' hunks decided';
+  }
+
+  function getHunkDecisions() {
+    const tbodies = document.querySelectorAll('#diff-table tbody');
+    return Array.from(tbodies).map(tb => tb.classList.contains('hunk-accepted'));
+  }
+
+  document.getElementById('accept-all').addEventListener('click', () => {
+    window.merge.sendResult({ action: 'accept-all', tabId: mergeData.tabId });
+    window.close();
+  });
+
+  document.getElementById('keep-session').addEventListener('click', () => {
+    window.merge.sendResult({ action: 'keep-session', tabId: mergeData.tabId });
+    window.close();
+  });
+
+  document.getElementById('apply-hunks').addEventListener('click', () => {
+    window.merge.sendResult({ action: 'apply-hunks', tabId: mergeData.tabId, decisions: getHunkDecisions() });
+    window.close();
+  });
+
+  document.getElementById('close-btn').addEventListener('click', () => {
+    window.close();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') window.close();
+  });
+</script>
+</body>
+</html>

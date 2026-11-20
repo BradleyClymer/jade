@@ -12,6 +12,12 @@ if (process.platform === 'linux') {
 
 let windows = [];
 let recentFiles = [];
+const fileWatchers = new Map();
+
+let gitHash = '';
+try {
+  gitHash = execSync('git rev-parse --short HEAD', { cwd: __dirname, encoding: 'utf8', timeout: 3000 }).trim();
+} catch (_) {}
 
 function createWindow(filePath) {
   const win = new BrowserWindow({
@@ -401,11 +407,35 @@ function buildMenu() {
           },
         },
         {
+          label: 'Minimap: Between Panes',
+          type: 'radio',
+          checked: true,
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('set-minimap-mode', 'between');
+          },
+        },
+        {
+          label: 'Minimap: Overlay on Editor',
+          type: 'radio',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('set-minimap-mode', 'overlay');
+          },
+        },
+        {
           label: 'Toggle Outline',
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {
             const win = getActiveWindow();
             if (win) win.webContents.send('toggle-outline');
+          },
+        },
+        {
+          label: 'Toggle Status Bar',
+          click: () => {
+            const win = getActiveWindow();
+            if (win) win.webContents.send('toggle-status-bar');
           },
         },
         { type: 'separator' },
@@ -489,7 +519,7 @@ function buildMenu() {
               type: 'info',
               title: 'About Jade',
               message: 'Jade Markdown Editor',
-              detail: `Version ${app.getVersion()}\nA lightweight Markdown editor with live preview.\nNo vaults. No bloat. Just Markdown.`,
+              detail: `Version ${app.getVersion()}${gitHash ? ' (' + gitHash + ')' : ''}\nA lightweight Markdown editor with live preview.\nNo vaults. No bloat. Just Markdown.`,
             });
           },
         },
@@ -704,6 +734,97 @@ ipcMain.handle('capture-page', async (event) => {
   const outPath = require('path').join(require('os').tmpdir(), 'jade_capture.png');
   require('fs').writeFileSync(outPath, pngBuf);
   return { success: true, path: outPath };
+});
+
+ipcMain.handle('open-merge-window', (event, data) => {
+  const parentWin = BrowserWindow.fromWebContents(event.sender);
+  const mergeWin = new BrowserWindow({
+    width: 900,
+    height: 650,
+    parent: parentWin || undefined,
+    modal: false,
+    title: 'Merge: ' + (data.fileName || 'External Changes'),
+    webPreferences: {
+      preload: path.join(__dirname, 'merge-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  mergeWin.setMenuBarVisibility(false);
+  mergeWin.loadFile(path.join(__dirname, 'renderer', 'merge-window.html'));
+  mergeWin.webContents.on('did-finish-load', () => {
+    mergeWin.webContents.send('merge-data', data);
+  });
+  ipcMain.once('merge-result', (_, result) => {
+    if (parentWin && !parentWin.isDestroyed()) {
+      parentWin.webContents.send('merge-result', result);
+    }
+  });
+  mergeWin.on('closed', () => {
+    ipcMain.removeAllListeners('merge-result');
+  });
+});
+
+ipcMain.handle('watch-file', (event, filePath) => {
+  if (fileWatchers.has(filePath)) return { success: true };
+  try {
+    let lastMtime = 0;
+    try { lastMtime = fs.statSync(filePath).mtimeMs; } catch (_) {}
+
+    function notifyChange() {
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.mtimeMs === lastMtime) return;
+        lastMtime = stat.mtimeMs;
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('file-changed-on-disk', filePath);
+        }
+      } catch (_) {}
+    }
+
+    function createWatcher() {
+      try {
+        const w = fs.watch(filePath, { persistent: false }, (eventType) => {
+          if (eventType === 'rename') {
+            // File was deleted/renamed (atomic save). Re-watch after a short delay.
+            w.close();
+            setTimeout(() => {
+              if (!fileWatchers.has(filePath)) return;
+              const w2 = createWatcher();
+              if (w2) { fileWatchers.set(filePath, w2); notifyChange(); }
+            }, 200);
+            return;
+          }
+          notifyChange();
+        });
+        w.on('error', () => {
+          w.close();
+          // Try to re-establish the watch after the file reappears
+          setTimeout(() => {
+            if (!fileWatchers.has(filePath)) return;
+            try {
+              const w2 = createWatcher();
+              if (w2) fileWatchers.set(filePath, w2);
+            } catch (_) { fileWatchers.delete(filePath); }
+          }, 500);
+        });
+        return w;
+      } catch (_) { return null; }
+    }
+
+    const watcher = createWatcher();
+    if (watcher) fileWatchers.set(filePath, watcher);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('unwatch-file', (event, filePath) => {
+  const watcher = fileWatchers.get(filePath);
+  if (watcher) { watcher.close(); fileWatchers.delete(filePath); }
+  return { success: true };
 });
 
 ipcMain.handle('get-title', (event, filePath, modified) => {

@@ -1,5 +1,33 @@
 # Jade Development Diary
 
+## 2026-11-19 -- External edit detection, merge window, layout fixes, collab fix (v0.3.0)
+
+### Done
+
+- **External edit detection**: `fs.watch` in main process tracks open files. When an outside agent (Claude, another editor) modifies a file on disk, the tab title pulses orange-to-white and a pulsing "Ext" indicator appears in the status bar.
+- **Merge window**: clicking the Ext indicator opens a separate BrowserWindow with a side-by-side diff (session vs disk). Per-hunk accept/reject buttons, bulk "Accept all disk changes" and "Keep session content". Esc to close. Uses a greedy LCS hunk algorithm with context trimming. Falls back to full-file diff for files over 20K lines.
+- **Watcher resilience**: handles EPERM from Windows atomic-save-by-rename (`fs.watch` error event + 200ms re-watch with retry). Own writes suppressed via `_suppressWatch` set so auto-save doesn't trigger false positives.
+- **Status bar layout fix**: body uses flexbox (`flex-direction: column`), workspace uses `flex: 1` instead of brittle `calc(100vh - 92px)`. Status bar now reliably visible regardless of Windows title bar height.
+- **Status bar toggle**: View > Toggle Status Bar hides/shows the status bar. Preference persisted in localStorage.
+- **Minimap between panes**: minimap now sits as its own column between editor and preview (default) instead of overlaying editor text. View menu has "Minimap: Between Panes" / "Minimap: Overlay on Editor" radio items. Preference persisted.
+- **Collab panel fix**: panel was invisible because it used `--bg-secondary` (undefined, resolved to transparent) and lacked `position: absolute` / `z-index`. Now uses `--bg-elevated` with `z-index: 10` and drop shadow.
+- **Collab security notice**: orange-bordered warning in the collab panel: sessions use public signaling servers, room ID is the only access control, not for sensitive documents.
+- **Git hash in About dialog**: shows commit hash after the version so the user can tell which build they're running.
+- **Test suite**: `test/ext-edit.js` (11 assertions): indicator visibility, external change detection, accept-disk content replacement, keep-session preservation, flag lifecycle.
+
+### Architecture
+
+- `main.js`: `watch-file` / `unwatch-file` IPC handlers, `open-merge-window` handler (child BrowserWindow with `merge-preload.js`), `fileWatchers` Map, mtime-debounced `file-changed-on-disk` notifications with error-resilient `createWatcher()`.
+- `merge-preload.js` + `renderer/merge-window.html`: standalone merge window with its own preload bridge. Communicates results back to the main window via `merge-result` IPC.
+- `preload.js`: `watchFile`, `unwatchFile`, `onFileChangedOnDisk`, `openMergeWindow`, `onMergeResult`, `onToggleStatusBar`, `onSetMinimapMode` bridge additions.
+- `renderer/app.js`: `Tab.diskContent` / `Tab.externalDiskContent` fields, `initFileWatch()` listener, `showMergeDialog()` sends data to merge window, `computeHunks()` LCS diff, `applyHunkDecisions()` pure-data merge, `toggleStatusBar()`, `setMinimapMode()` with layout recalc.
+- `renderer/styles.css`: `@keyframes ext-edit-pulse` (orange-to-white over 2s), merge overlay styles, `status-bar-hidden` class, minimap `between` vs `overlay` modes, collab panel z-index + security notice.
+
+### Learned
+
+- `fs.watch` on Windows emits `'rename'` then `'error'` (EPERM) when a file is atomically saved (write-to-temp then rename). The error is an EventEmitter `'error'` event, not inside the callback -- without a handler it becomes an uncaught exception that crashes the app.
+- CSS variables that are referenced but never defined in `:root` resolve to the `initial` value (usually `transparent` for `background`), not to a fallback. Several `--bg-secondary`, `--border-primary`, `--accent-primary` references in the codebase are ghosts from an older theme system and should be migrated to the actual theme variables (`--bg-elevated`, `--border`, `--text-accent`).
+
 ## 2026-11-02/03 -- P3-P4 feature sweep, CI/CD, history rewrite
 
 ### Done
@@ -159,10 +187,18 @@
 - [x] Linux: force GTK3 (Electron 36 loads GTK4 at runtime while linking GTK3, aborting with "GTK 2/3 symbols detected") -- 2026-11-18
 
 #### P5 -- future
+- [ ] Faster preview rendering (incremental DOM patching via morphdom, viewport-only rendering, offload markdown-it to Web Worker)
+- [ ] Multi-window sessions with configurable window titles (topic summary, filename, path -- figure out the UX)
+- [x] Fix collab panel (z-index bug, missing theme variables, security notice) -- 2026-11-19
+- [ ] Secured collaboration: private signaling server, application-layer encryption on CRDT updates, room passwords or invite tokens; the current WebRTC+public-signaling setup is functional but unsuitable for sensitive documents
 - [ ] LLM interaction panel (select text, send to LLM for rewrite/summarize/expand/ask)
 - [ ] CAC/smart card PDF signing (pkcs11js for PKCS#11 hardware access, node-signpdf for PDF signature containers; spike needed to validate Electron native addon compatibility)
 - [ ] Visual signature placement on PDF (drag-to-place after spike proves out)
 - [ ] Signature verification for incoming PDFs
+- [x] External edit detection: watch open files for on-disk changes by outside agents (Claude, other editors); sinusoidally pulsing indicator while the condition is present so the user notices before losing work -- 2026-11-19
+- [x] Meld-like diff interface for external edits: when an outside change is detected, open a side-by-side diff to accept/reject individual hunks, or offer simple "accept all disk changes" vs "keep unsaved session" choices -- 2026-11-19
+- [ ] Scrollbar change markers: highlight changed regions in the scrollbar gutter with orange markers (like Spyder/VS Code), so the user can see at a glance where external edits land in a long document
+- [ ] Merge dialog scroll-snap: clicking in one diff pane scrolls the other to align at the same hunk
 
 ### Cross-platform notes
 

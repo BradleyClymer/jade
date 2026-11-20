@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('jade', {
   onToggleOutline: (cb) => ipcRenderer.on('toggle-outline', () => cb()),
   onSetPdfPageSize: (cb) => ipcRenderer.on('set-pdf-page-size', (_, size) => cb(size)),
   onToggleMinimap: (cb) => ipcRenderer.on('toggle-minimap', () => cb()),
+  onToggleStatusBar: (cb) => ipcRenderer.on('toggle-status-bar', () => cb()),
+  onSetMinimapMode: (cb) => ipcRenderer.on('set-minimap-mode', (_, mode) => cb(mode)),
   onOpenSnippets: (cb) => ipcRenderer.on('open-snippets', () => cb()),
   onOpenTableEditor: (cb) => ipcRenderer.on('open-table-editor', () => cb()),
   loadPlugins: () => ipcRenderer.invoke('load-plugins'),
@@ -58,4 +60,9 @@ contextBridge.exposeInMainWorld('jade', {
   gitUnstage: (cwd, filePath) => ipcRenderer.invoke('git-unstage', cwd, filePath),
   gitCommit: (cwd, message) => ipcRenderer.invoke('git-commit', cwd, message),
   gitLog: (cwd, count) => ipcRenderer.invoke('git-log', cwd, count),
+  watchFile: (filePath) => ipcRenderer.invoke('watch-file', filePath),
+  unwatchFile: (filePath) => ipcRenderer.invoke('unwatch-file', filePath),
+  onFileChangedOnDisk: (cb) => ipcRenderer.on('file-changed-on-disk', (_, filePath) => cb(filePath)),
+  openMergeWindow: (data) => ipcRenderer.invoke('open-merge-window', data),
+  onMergeResult: (cb) => ipcRenderer.on('merge-result', (_, result) => cb(result)),
 });

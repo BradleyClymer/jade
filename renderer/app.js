@@ -314,6 +314,8 @@ class Tab {
     this.editorState = null;
     this.scrollTop = 0;
     this.previewScrollTop = 0;
+    this.diskContent = content;
+    this.externalDiskContent = null;
   }
 
   get isLatex() {
@@ -393,7 +395,9 @@ class JadeApp {
     this.collabText = null;
     this.collabRoomId = null;
     this.collabPanelVisible = false;
+    this.statusBarVisible = this.loadStatusBarVisible();
     this.collabUsername = this.loadCollabUsername();
+    this._suppressWatch = new Set();
     this.vimCompartment = new Compartment();
     this.wrapCompartment = new Compartment();
     this.lintCompartment = new Compartment();
@@ -423,6 +427,11 @@ class JadeApp {
     this.initMinimap();
     this.loadCustomCSS();
     this.loadPlugins();
+
+    this.initFileWatch();
+    if (!this.statusBarVisible) {
+      document.getElementById('status-bar').classList.add('status-bar-hidden');
+    }
 
     // Apply saved theme
     this.setTheme(this.currentTheme);
@@ -826,19 +835,32 @@ class JadeApp {
 
   initLayout() {
     this.splitRatio = 0.5;
+    this.minimapMode = this.loadMinimapMode();
     const applyLayout = () => {
       const workspace = document.getElementById('workspace');
       const editor = document.getElementById('editor-pane');
       const preview = document.getElementById('preview-pane');
       const divider = document.getElementById('divider');
+      const minimap = document.getElementById('minimap');
       const totalW = workspace.offsetWidth;
       const divW = 4;
-      const editorW = Math.floor((totalW - divW) * this.splitRatio);
-      const previewW = totalW - divW - editorW;
+      const mmW = (this.minimapVisible && this.minimapMode === 'between' && minimap) ? 80 : 0;
+      const editorW = Math.floor((totalW - divW - mmW) * this.splitRatio);
+      const previewW = totalW - divW - mmW - editorW;
 
       editor.style.cssText = `position:absolute;left:0;top:0;bottom:0;width:${editorW}px;overflow:hidden;`;
-      divider.style.cssText = `position:absolute;left:${editorW}px;top:0;bottom:0;width:${divW}px;cursor:col-resize;background:var(--border);z-index:1;`;
-      preview.style.cssText = `position:absolute;left:${editorW + divW}px;top:0;bottom:0;width:${previewW}px;overflow:hidden;background:var(--bg-surface);border-left:1px solid var(--border);`;
+      if (minimap) {
+        if (this.minimapMode === 'overlay') {
+          minimap.style.cssText = '';
+          minimap.classList.add('minimap-overlay');
+        } else {
+          minimap.classList.remove('minimap-overlay');
+          minimap.style.cssText = `position:absolute;left:${editorW}px;top:0;bottom:0;width:80px;`;
+        }
+      }
+      const mmLeft = editorW + mmW;
+      divider.style.cssText = `position:absolute;left:${mmLeft}px;top:0;bottom:0;width:${divW}px;cursor:col-resize;background:var(--border);z-index:1;`;
+      preview.style.cssText = `position:absolute;left:${mmLeft + divW}px;top:0;bottom:0;width:${previewW}px;overflow:hidden;background:var(--bg-surface);border-left:1px solid var(--border);`;
 
       const cmEditor = editor.querySelector('.cm-editor');
       if (cmEditor) {
@@ -847,7 +869,7 @@ class JadeApp {
     };
 
     const workspace = document.getElementById('workspace');
-    workspace.style.cssText = `position:relative;height:calc(100vh - 36px - 24px);overflow:hidden;`;
+    workspace.style.cssText = `position:relative;overflow:hidden;`;
 
     applyLayout();
     window.addEventListener('resize', () => {
@@ -1032,6 +1054,8 @@ class JadeApp {
     window.jade.onToggleOutline(() => this.toggleOutline());
     window.jade.onSetPdfPageSize((size) => this.setPdfPageSize(size));
     window.jade.onToggleMinimap(() => this.toggleMinimap());
+    window.jade.onToggleStatusBar(() => this.toggleStatusBar());
+    window.jade.onSetMinimapMode((mode) => this.setMinimapMode(mode));
     window.jade.onOpenSnippets(() => this.openSnippetEditor());
     window.jade.onOpenTableEditor(() => this.openTableEditor());
     window.jade.onReloadPlugins(() => this.loadPlugins());
@@ -1095,9 +1119,11 @@ class JadeApp {
       if (tab === this.editorTab) tab.editorState = this.editor.state;
       const content = tab.editorState ? tab.editorState.doc.toString() : '';
       if (content !== tab.savedContent) {
+        this._suppressWatch.add(tab.filePath);
         const result = await window.jade.writeFile(tab.filePath, content);
         if (result.success) {
           tab.savedContent = content;
+          tab.diskContent = content;
           this.renderTabs();
           this.updateWindowTitle();
         }
@@ -1180,6 +1206,8 @@ class JadeApp {
       }
     }
 
+    this.stopWatching(tab.filePath);
+
     // If this is the last tab, replace it with a blank one
     if (this.tabs.length === 1) {
       this.tabs[0] = new Tab(null, '');
@@ -1187,6 +1215,7 @@ class JadeApp {
       this.activeTabIndex = 0;
       this.showTab(this.tabs[0]);
       this.renderTabs();
+      this.updateExtEditIndicator();
       this.updatePreview();
       this.updateStatusBar();
       this.updateWindowTitle();
@@ -1211,7 +1240,7 @@ class JadeApp {
     this.tabsEl.innerHTML = '';
     this.tabs.forEach((tab, i) => {
       const el = document.createElement('div');
-      el.className = 'tab' + (i === this.activeTabIndex ? ' active' : '') + (tab.modified ? ' modified' : '');
+      el.className = 'tab' + (i === this.activeTabIndex ? ' active' : '') + (tab.modified ? ' modified' : '') + (tab.externalDiskContent !== null ? ' ext-changed' : '');
       el.innerHTML = `
         <span class="tab-modified">●</span>
         <span class="tab-title">${this.escapeHtml(tab.name)}</span>
@@ -1272,6 +1301,7 @@ class JadeApp {
       this.switchToTab(this.tabs.length - 1);
     }
     this.addRecentFile(filePath);
+    this.startWatching(filePath);
     this.renderTabs();
     this.updatePreview();
   }
@@ -1294,10 +1324,14 @@ class JadeApp {
     }
 
     const content = tab.editorState ? tab.editorState.doc.toString() : '';
+    this._suppressWatch.add(tab.filePath);
     const result = await window.jade.writeFile(tab.filePath, content);
     if (result.success) {
       tab.savedContent = content;
+      tab.diskContent = content;
+      tab.externalDiskContent = null;
       this.renderTabs();
+      this.updateExtEditIndicator();
       this.updateWindowTitle();
       return true;
     }
@@ -1319,12 +1353,19 @@ class JadeApp {
     const result = await window.jade.saveDialog();
     if (result.canceled) return false;
 
+    const oldPath = tab.filePath;
     tab.filePath = result.filePath;
+    this.stopWatching(oldPath);
     const content = tab.editorState ? tab.editorState.doc.toString() : '';
+    this._suppressWatch.add(tab.filePath);
     const writeResult = await window.jade.writeFile(tab.filePath, content);
     if (writeResult.success) {
       tab.savedContent = content;
+      tab.diskContent = content;
+      tab.externalDiskContent = null;
+      this.startWatching(tab.filePath);
       this.renderTabs();
+      this.updateExtEditIndicator();
       this.updateWindowTitle();
       return true;
     }
@@ -1404,13 +1445,19 @@ class JadeApp {
     const workspace = document.getElementById('workspace');
     const totalW = workspace.offsetWidth;
 
+    const minimap = document.getElementById('minimap');
     if (mode === 'editor') {
       editor.style.width = totalW + 'px';
       divider.style.display = 'none';
       preview.style.display = 'none';
+      if (minimap && this.minimapVisible && this.minimapMode === 'between') {
+        editor.style.width = (totalW - 80) + 'px';
+        minimap.style.cssText = `position:absolute;left:${totalW - 80}px;top:0;bottom:0;width:80px;`;
+      }
     } else if (mode === 'preview') {
       editor.style.display = 'none';
       divider.style.display = 'none';
+      if (minimap) minimap.style.display = 'none';
       preview.style.left = '0px';
       preview.style.width = totalW + 'px';
       preview.style.display = '';
@@ -1418,6 +1465,7 @@ class JadeApp {
       editor.style.display = '';
       divider.style.display = '';
       preview.style.display = '';
+      if (minimap) minimap.style.display = '';
       if (this._applyLayout) this._applyLayout();
     }
 
@@ -2130,12 +2178,34 @@ class JadeApp {
     });
   }
 
+  loadMinimapMode() {
+    try { return localStorage.getItem('jade-minimap-mode') || 'between'; } catch (_) { return 'between'; }
+  }
+
+  setMinimapMode(mode) {
+    this.minimapMode = mode;
+    try { localStorage.setItem('jade-minimap-mode', mode); } catch (_) {}
+    if (this._applyLayout) this._applyLayout();
+    if (this.minimapVisible) this.updateMinimap();
+  }
+
+  loadStatusBarVisible() {
+    try { return localStorage.getItem('jade-status-bar') !== 'hidden'; } catch (_) { return true; }
+  }
+
+  toggleStatusBar() {
+    this.statusBarVisible = !this.statusBarVisible;
+    document.getElementById('status-bar').classList.toggle('status-bar-hidden', !this.statusBarVisible);
+    try { localStorage.setItem('jade-status-bar', this.statusBarVisible ? 'visible' : 'hidden'); } catch (_) {}
+  }
+
   toggleMinimap() {
     this.minimapVisible = !this.minimapVisible;
     const el = document.getElementById('minimap');
     if (el) el.classList.toggle('minimap-hidden', !this.minimapVisible);
     const btn = document.getElementById('minimap-btn');
     if (btn) btn.classList.toggle('active', this.minimapVisible);
+    if (this._applyLayout) this._applyLayout();
     if (this.minimapVisible) this.updateMinimap();
   }
 
@@ -3110,6 +3180,11 @@ class JadeApp {
       joinBtn.textContent = 'Join Session';
       joinBtn.addEventListener('click', () => this.joinCollabSession(roomInput.value));
       content.appendChild(joinBtn);
+
+      const notice = document.createElement('div');
+      notice.className = 'collab-security-notice';
+      notice.textContent = 'Not secured. Sessions use peer-to-peer WebRTC with public signaling servers. The room ID is the only access control. Do not use for sensitive documents.';
+      content.appendChild(notice);
     } else {
       const roomRow = document.createElement('div');
       roomRow.className = 'collab-room-id';
@@ -3169,6 +3244,271 @@ class JadeApp {
       leaveBtn.addEventListener('click', () => this.leaveCollabSession());
       content.appendChild(leaveBtn);
     }
+  }
+
+  // --- External edit detection & merge ---
+
+  initFileWatch() {
+    window.jade.onFileChangedOnDisk(async (filePath) => {
+      if (this._suppressWatch.has(filePath)) {
+        this._suppressWatch.delete(filePath);
+        return;
+      }
+      const tab = this.tabs.find(t => t.filePath === filePath);
+      if (!tab) return;
+      const result = await window.jade.readFile(filePath);
+      if (!result.success) return;
+      if (result.content === tab.diskContent) return;
+      tab.diskContent = result.content;
+      const bufferContent = tab === this.editorTab
+        ? this.editor.state.doc.toString()
+        : (tab.editorState ? tab.editorState.doc.toString() : tab.savedContent);
+      if (result.content === bufferContent) {
+        tab.savedContent = result.content;
+        tab.externalDiskContent = null;
+        this.renderTabs();
+        this.updateWindowTitle();
+        return;
+      }
+      tab.externalDiskContent = result.content;
+      this.renderTabs();
+      this.updateExtEditIndicator();
+    });
+
+    document.getElementById('ext-edit-btn').addEventListener('click', () => {
+      const tab = this.tabs[this.activeTabIndex];
+      if (tab && tab.externalDiskContent !== null) {
+        this.showMergeDialog(tab);
+      } else {
+        const changed = this.tabs.find(t => t.externalDiskContent !== null);
+        if (changed) {
+          this.switchToTab(this.tabs.indexOf(changed));
+          this.showMergeDialog(changed);
+        }
+      }
+    });
+  }
+
+  startWatching(filePath) {
+    if (filePath) window.jade.watchFile(filePath);
+  }
+
+  stopWatching(filePath) {
+    if (filePath) window.jade.unwatchFile(filePath);
+  }
+
+  updateExtEditIndicator() {
+    const btn = document.getElementById('ext-edit-btn');
+    const anyChanged = this.tabs.some(t => t.externalDiskContent !== null);
+    btn.classList.toggle('ext-edit-hidden', !anyChanged);
+    btn.classList.toggle('ext-edit-active', anyChanged);
+    const count = this.tabs.filter(t => t.externalDiskContent !== null).length;
+    btn.title = anyChanged
+      ? `External changes in ${count} file${count > 1 ? 's' : ''} (click to review)`
+      : 'No external changes';
+  }
+
+  acceptDiskContent(tab) {
+    const content = tab.externalDiskContent;
+    tab.externalDiskContent = null;
+    tab.savedContent = content;
+    tab.diskContent = content;
+    if (tab === this.editorTab) {
+      const pos = Math.min(this.editor.state.selection.main.head, content.length);
+      this.editor.dispatch({
+        changes: { from: 0, to: this.editor.state.doc.length, insert: content },
+        selection: { anchor: pos },
+      });
+      tab.editorState = this.editor.state;
+    } else if (tab.editorState) {
+      tab.editorState = this.createState(content);
+    }
+    this.renderTabs();
+    this.updateExtEditIndicator();
+    this.updatePreview();
+    this.updateWindowTitle();
+  }
+
+  keepSessionContent(tab) {
+    tab.externalDiskContent = null;
+    this.renderTabs();
+    this.updateExtEditIndicator();
+  }
+
+  showMergeDialog(tab) {
+    const sessionContent = tab === this.editorTab
+      ? this.editor.state.doc.toString()
+      : (tab.editorState ? tab.editorState.doc.toString() : tab.savedContent);
+    const diskContent = tab.externalDiskContent;
+    if (diskContent === null) return;
+
+    const hunks = this.computeHunks(sessionContent, diskContent);
+    const tabId = tab.id;
+
+    if (!this._mergeResultWired) {
+      this._mergeResultWired = true;
+      window.jade.onMergeResult((result) => {
+        const t = this.tabs.find(t => t.id === result.tabId);
+        if (!t) return;
+        if (result.action === 'accept-all') {
+          this.acceptDiskContent(t);
+        } else if (result.action === 'keep-session') {
+          this.keepSessionContent(t);
+        } else if (result.action === 'apply-hunks') {
+          const sContent = t === this.editorTab
+            ? this.editor.state.doc.toString()
+            : (t.editorState ? t.editorState.doc.toString() : t.savedContent);
+          const dContent = t.externalDiskContent;
+          if (dContent === null) return;
+          const h = this.computeHunks(sContent, dContent);
+          const merged = this.applyHunkDecisions(sContent, dContent, h, result.decisions);
+          if (merged !== null) {
+            t.externalDiskContent = null;
+            t.savedContent = merged;
+            if (t === this.editorTab) {
+              const pos = Math.min(this.editor.state.selection.main.head, merged.length);
+              this.editor.dispatch({
+                changes: { from: 0, to: this.editor.state.doc.length, insert: merged },
+                selection: { anchor: pos },
+              });
+              t.editorState = this.editor.state;
+            } else if (t.editorState) {
+              t.editorState = this.createState(merged);
+            }
+            this.renderTabs();
+            this.updateExtEditIndicator();
+            this.updatePreview();
+            this.updateWindowTitle();
+          }
+        }
+      });
+    }
+
+    window.jade.openMergeWindow({ tabId, fileName: tab.name, hunks });
+  }
+
+  computeHunks(sessionText, diskText) {
+    const linesA = sessionText.split('\n');
+    const linesB = diskText.split('\n');
+    const n = linesA.length, m = linesB.length;
+
+    // Myers-like LCS for context/change hunks, with bounded fallback for large files
+    const max = n + m;
+    if (max > 20000) return this.computeHunksSimple(linesA, linesB);
+
+    const lcs = [];
+    // Simple O(n*m) LCS table is too big for large files; use a line-hash approach
+    const hashB = new Map();
+    linesB.forEach((l, i) => {
+      if (!hashB.has(l)) hashB.set(l, []);
+      hashB.get(l).push(i);
+    });
+
+    // Patience-style: match common lines greedily with context
+    const matches = [];
+    let bStart = 0;
+    for (let a = 0; a < n; a++) {
+      const positions = hashB.get(linesA[a]);
+      if (!positions) continue;
+      for (const b of positions) {
+        if (b >= bStart) {
+          matches.push([a, b]);
+          bStart = b + 1;
+          break;
+        }
+      }
+    }
+
+    const hunks = [];
+    let posA = 0, posB = 0;
+    for (const [mA, mB] of matches) {
+      if (mA > posA || mB > posB) {
+        hunks.push({
+          type: 'change',
+          startA: posA,
+          startB: posB,
+          delLines: linesA.slice(posA, mA),
+          addLines: linesB.slice(posB, mB),
+        });
+      }
+      // Context line
+      const ctxStart = hunks.length > 0 && hunks[hunks.length - 1].type === 'context'
+        ? hunks[hunks.length - 1] : null;
+      if (ctxStart) {
+        ctxStart.lines.push(linesA[mA]);
+      } else {
+        hunks.push({ type: 'context', startA: mA, startB: mB, lines: [linesA[mA]] });
+      }
+      posA = mA + 1;
+      posB = mB + 1;
+    }
+    if (posA < n || posB < m) {
+      hunks.push({
+        type: 'change',
+        startA: posA,
+        startB: posB,
+        delLines: linesA.slice(posA),
+        addLines: linesB.slice(posB),
+      });
+    }
+
+    // Trim long context runs to 3 lines on each end
+    const trimmed = [];
+    for (const h of hunks) {
+      if (h.type === 'context' && h.lines.length > 7) {
+        trimmed.push({ type: 'context', startA: h.startA, startB: h.startB, lines: h.lines.slice(0, 3) });
+        trimmed.push({ type: 'context', startA: h.startA + h.lines.length - 3, startB: h.startB + h.lines.length - 3, lines: h.lines.slice(-3) });
+      } else {
+        trimmed.push(h);
+      }
+    }
+    return trimmed;
+  }
+
+  computeHunksSimple(linesA, linesB) {
+    // Fallback for very large files: show entire thing as one change
+    return [{
+      type: 'change',
+      startA: 0, startB: 0,
+      delLines: linesA,
+      addLines: linesB,
+    }];
+  }
+
+  applyHunkSelections(tab, sessionText, diskText, hunks, tableEl) {
+    const tbodies = tableEl.querySelectorAll('tbody');
+    let hunkIdx = 0;
+    const result = [];
+
+    for (const hunk of hunks) {
+      if (hunk.type === 'context') {
+        result.push(...hunk.lines);
+      } else {
+        const tbody = tbodies[hunkIdx];
+        hunkIdx++;
+        if (tbody && tbody.classList.contains('hunk-accepted')) {
+          result.push(...hunk.addLines);
+        } else {
+          result.push(...hunk.delLines);
+        }
+      }
+    }
+    return result.join('\n');
+  }
+
+  applyHunkDecisions(sessionText, diskText, hunks, decisions) {
+    let hunkIdx = 0;
+    const result = [];
+    for (const hunk of hunks) {
+      if (hunk.type === 'context') {
+        result.push(...hunk.lines);
+      } else {
+        const accepted = decisions && decisions[hunkIdx];
+        hunkIdx++;
+        result.push(...(accepted ? hunk.addLines : hunk.delLines));
+      }
+    }
+    return result.join('\n');
   }
 
   escapeHtml(str) {

@@ -47,11 +47,10 @@
       <div id="collab-header"><span>Collaborate</span><button id="collab-close">&times;</button></div>
       <div id="collab-content"></div>
     </div>
-    <div id="editor-pane">
-      <div id="minimap" class="minimap-hidden">
-        <canvas id="minimap-canvas"></canvas>
-        <div id="minimap-viewport"></div>
-      </div>
+    <div id="editor-pane"></div>
+    <div id="minimap" class="minimap-hidden">
+      <canvas id="minimap-canvas"></canvas>
+      <div id="minimap-viewport"></div>
     </div>
     <div id="divider"></div>
     <div id="preview-pane">
@@ -65,6 +64,7 @@
     <span id="status-encoding" class="status-btn" title="Encoding (click to change)">UTF-8</span>
     <span id="status-eol" class="status-btn" title="Line ending (click to toggle)">LF</span>
     <span id="status-lang">Markdown</span>
+    <button id="ext-edit-btn" class="status-btn ext-edit-hidden" title="External changes detected (click to review)">Ext</button>
     <button id="macro-btn" class="status-btn" title="Macro (Ctrl+Shift+R to record, Ctrl+Shift+P to play)">Macro</button>
     <button id="collab-btn" class="status-btn" title="Collaborate">Collab</button>
     <button id="minimap-btn" class="status-btn" title="Minimap">Map</button>
